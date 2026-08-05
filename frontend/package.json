@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build --config vite.config.js",
     "preview": "vite preview --config vite.config.js",
     "lint": "tsc -b --pretty false",
+    "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
