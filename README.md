@@ -126,7 +126,9 @@ npm --prefix frontend ci
 ```
 
 The combined development command stops both processes when you press Ctrl+C,
-so the browser client is not accidentally left running without its API.
+waits for a healthy API before opening the client, and stops both processes
+when you press Ctrl+C. The Visual Studio HTTPS profile also listens on the
+HTTP development endpoint used by Vite, so either API launch profile works.
 
 The client is at `http://localhost:5173`, the API at `http://localhost:5192`, and development Swagger at `http://localhost:5192/swagger`.
 

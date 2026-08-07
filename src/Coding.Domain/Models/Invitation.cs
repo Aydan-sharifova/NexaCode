@@ -7,11 +7,11 @@ namespace Coding.Models
     {
         public Guid WorkspaceId { get; set; }
 
-        public Workspace Workspace { get; set; }
+        public Workspace Workspace { get; set; } = null!;
 
-        public string Email { get; set; }
+        public string Email { get; set; } = string.Empty;
 
-        public string Token { get; set; }
+        public string Token { get; set; } = string.Empty;
 
         public InvitationStatus Status { get; set; }
 
@@ -20,4 +20,3 @@ namespace Coding.Models
         public DateTime CreatedAt { get; set; }
     }
 }
-

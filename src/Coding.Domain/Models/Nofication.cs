@@ -7,11 +7,11 @@ namespace Coding.Models
     {
         public Guid UserId { get; set; }
 
-        public User User { get; set; }
+        public User User { get; set; } = null!;
 
-        public string Title { get; set; }
+        public string Title { get; set; } = string.Empty;
 
-        public string Message { get; set; }
+        public string Message { get; set; } = string.Empty;
 
         public NotificationType Type { get; set; }
 

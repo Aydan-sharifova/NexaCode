@@ -8,17 +8,16 @@ namespace Coding.Models
 
         public Guid FileItemId { get; set; }
 
-        public FileItem FileItem { get; set; }
+        public FileItem FileItem { get; set; } = null!;
 
         public Guid UserId { get; set; }
 
-        public User User { get; set; }
+        public User User { get; set; } = null!;
 
-        public string OldContent { get; set; }
+        public string OldContent { get; set; } = string.Empty;
 
-        public string NewContent { get; set; }
+        public string NewContent { get; set; } = string.Empty;
 
         public DateTime EditedAt { get; set; }
     }
 }
-

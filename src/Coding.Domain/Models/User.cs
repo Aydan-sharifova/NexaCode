@@ -4,15 +4,15 @@ namespace Coding.Models
     public class User : Base
     {
 
-        public string FirstName { get; set; }
+        public string FirstName { get; set; } = string.Empty;
 
-        public string LastName { get; set; }
+        public string LastName { get; set; } = string.Empty;
 
-        public string UserName { get; set; }
+        public string UserName { get; set; } = string.Empty;
 
-        public string Email { get; set; }
+        public string Email { get; set; } = string.Empty;
 
-        public string PasswordHash { get; set; }
+        public string PasswordHash { get; set; } = string.Empty;
 
         public string? AvatarUrl { get; set; }
 
@@ -31,22 +31,22 @@ namespace Coding.Models
         public DateTime? SuspendedAt { get; set; }
         public string? SuspensionReason { get; set; }
 
-        public ICollection<RefreshToken> RefreshTokens { get; set; }
+        public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
 
-        public ICollection<AccountToken> AccountTokens { get; set; }
+        public ICollection<AccountToken> AccountTokens { get; set; } = [];
 
-        public ICollection<UserRole> UserRoles { get; set; }
+        public ICollection<UserRole> UserRoles { get; set; } = [];
 
-        public ICollection<WorkspaceMember> WorkspaceMembers { get; set; }
+        public ICollection<WorkspaceMember> WorkspaceMembers { get; set; } = [];
 
-        public ICollection<ProjectMember> ProjectMembers { get; set; }
+        public ICollection<ProjectMember> ProjectMembers { get; set; } = [];
 
         public ICollection<Project> OwnedProjects { get; set; } = [];
 
-        public ICollection<Message> Messages { get; set; }
+        public ICollection<Message> Messages { get; set; } = [];
 
-        public ICollection<Notification> Notifications { get; set; }
+        public ICollection<Notification> Notifications { get; set; } = [];
 
-        public ICollection<CodeHistory> CodeHistories { get; set; }
+        public ICollection<CodeHistory> CodeHistories { get; set; } = [];
     }
 }

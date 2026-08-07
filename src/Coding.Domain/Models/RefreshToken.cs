@@ -3,7 +3,7 @@ namespace Coding.Models
 {
     public class RefreshToken:Base
     {
-        public string Token { get; set; }
+        public string Token { get; set; } = string.Empty;
 
         public DateTime ExpireDate { get; set; }
 
@@ -11,7 +11,6 @@ namespace Coding.Models
 
         public Guid UserId { get; set; }
 
-        public User User { get; set; }
+        public User User { get; set; } = null!;
     }
 }
-

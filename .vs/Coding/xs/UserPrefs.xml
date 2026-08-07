@@ -70,15 +70,13 @@
     <Pads>
       <Pad Id="ProjectPad">
         <State name="__root__">
-          <Node name="Coding">
+          <Node name="Coding" expanded="True">
             <Node name="src" expanded="True">
-              <Node name="Coding.Api">
+              <Node name="Coding.Api" expanded="True">
                 <Node name="Controllers" expanded="True" />
               </Node>
             </Node>
-            <Node name="Coding.UnitTests">
-              <Node name="CoreWorkflowValidationTests.cs" selected="True" />
-            </Node>
+            <Node name="Coding.UnitTests" expanded="True" />
           </Node>
         </State>
       </Pad>

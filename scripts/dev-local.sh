@@ -26,6 +26,26 @@ dotnet run \
   --no-restore &
 api_pid=$!
 
+api_ready=false
+for _ in {1..60}; do
+  if ! kill -0 "$api_pid" 2>/dev/null; then
+    wait "$api_pid"
+    exit 1
+  fi
+
+  if curl --fail --silent --show-error http://localhost:5192/health >/dev/null 2>&1; then
+    api_ready=true
+    break
+  fi
+
+  sleep 0.5
+done
+
+if [[ "$api_ready" != true ]]; then
+  echo "The API did not become healthy on http://localhost:5192." >&2
+  exit 1
+fi
+
 (
   cd "$root_dir/frontend"
   npm run dev

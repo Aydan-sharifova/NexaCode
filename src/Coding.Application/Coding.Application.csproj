@@ -6,8 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Coding.Domain/Coding.Domain.csproj" />
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <Using Include="Microsoft.AspNetCore.Http" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />

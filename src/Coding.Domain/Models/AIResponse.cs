@@ -7,9 +7,9 @@ namespace Coding.Models
     {
         public Guid AIRequestId { get; set; }
 
-        public AIRequest AIRequest { get; set; }
+        public AIRequest AIRequest { get; set; } = null!;
 
-        public string ResponseText { get; set; }
+        public string ResponseText { get; set; } = string.Empty;
 
         public int PromptTokens { get; set; }
 
@@ -18,4 +18,3 @@ namespace Coding.Models
         public DateTime GeneratedAt { get; set; }
     }
 }
-

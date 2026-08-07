@@ -1,5 +1,4 @@
 using Coding.Data;
-using Coding.Services.Implaments;
 using Coding.Services.Interfaces;
 using Coding.Infrastructure.Authentication;
 using Microsoft.EntityFrameworkCore;
@@ -52,7 +51,6 @@ public static class DependencyInjection
         services.AddSingleton<ICollaborativeContentMaterializer>(provider => provider.GetRequiredService<CollaborativeContentMaterializer>());
         services.AddHostedService(provider => provider.GetRequiredService<CollaborativeContentMaterializer>());
 
-        services.AddScoped(typeof(ICrudService<,,,>), typeof(CrudService<,,,>));
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddSingleton<ICacheService, MemoryCacheService>();
         services.AddScoped<IRoleService, RoleService>();
