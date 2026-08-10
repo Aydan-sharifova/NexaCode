@@ -73,7 +73,7 @@ export function useMonacoConfiguration() {
     // core. Some Vite dependency-cache states briefly expose the editor before
     // that contribution is attached, so configuration must never assume it is
     // already available.
-    const typescript = monaco.typescript;
+    const typescript = monaco.languages.typescript;
     if (typescript?.typescriptDefaults) {
       typescript.typescriptDefaults.setCompilerOptions({
         allowNonTsExtensions: true,

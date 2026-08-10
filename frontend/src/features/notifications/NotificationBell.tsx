@@ -43,12 +43,12 @@ export function NotificationBell() {
         <button disabled={unreadCount === 0} onClick={async () => { await notificationApi.readAll(); read(); }}>{pt("markAllRead")}</button>
       </header>
       <div className="notification-dropdown-body">
-        {items.slice(0, 6).map((item) => <button key={item.id} className={item.isRead ? "" : "unread"} onClick={() => void markRead(item.id)}>
+        {items.slice(0, 6).map((item) => <button key={item.id} className={item.isRead ? "" : "unread"} onClick={() => { if (item.type === "Invitation" && item.relatedEntityId) { setOpen(false); navigate(`/notifications?invitation=${item.relatedEntityId}`); } else void markRead(item.id); }}>
           <i aria-hidden="true">{item.type.slice(0, 1)}</i>
           <span>
             <b>{item.title}</b>
             <span>{item.message}</span>
-            <small>{new Date(item.createdAt).toLocaleString(locale)}</small>
+            <small>{new Date(item.createdAt).toLocaleString(locale)}{item.type === "Invitation" && item.relatedEntityId ? " · Review invitation" : ""}</small>
           </span>
           {!item.isRead && <em aria-label="Unread" />}
         </button>)}

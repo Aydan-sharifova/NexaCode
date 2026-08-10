@@ -7,16 +7,40 @@ import { useAuth } from "../hooks/useAuth";
 import { usePageTranslation } from "../hooks/usePageTranslation";
 import { Dialog } from "../components/ui/Dialog";
 import { AiAssistantPanel } from "../features/ai/AiAssistantPanel";
+import { useToast } from "../contexts/ToastContext";
+
+const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function ChatPage() {
   const { pt } = usePageTranslation();
-  const client = useQueryClient(); const { session } = useAuth(); const [active, setActive] = useState<string>(); const [content, setContent] = useState(""); const [otherUserId, setOtherUserId] = useState(""); const [typingIds, setTypingIds] = useState<string[]>([]); const [aiOpen, setAiOpen] = useState(false); const typingTimer = useRef<number | undefined>(undefined);
+  const client = useQueryClient(); const { session } = useAuth(); const { show } = useToast(); const [active, setActive] = useState<string>(); const [content, setContent] = useState(""); const [otherUserId, setOtherUserId] = useState(""); const [typingIds, setTypingIds] = useState<string[]>([]); const [aiOpen, setAiOpen] = useState(false); const typingTimer = useRef<number | undefined>(undefined);
   const conversations = useQuery({ queryKey: ["chat-conversations"], queryFn: chatApi.conversations });
   useEffect(() => { if (!active && conversations.data?.[0]) setActive(conversations.data[0].id); }, [active, conversations.data]);
   const messages = useInfiniteQuery({ queryKey: ["chat-messages", active], enabled: Boolean(active), queryFn: ({ pageParam }) => chatApi.messages(active!, pageParam), initialPageParam: undefined as string | undefined, getNextPageParam: (page) => page.nextCursor });
   useEffect(() => { if (!active) return; void signalRService.joinConversation(active); const offMessage = signalRService.onMessage((message) => { if (message.conversationId === active) void messages.refetch(); void conversations.refetch(); }); const offUpdated = signalRService.onConversationUpdated(() => void conversations.refetch()); const offTyping = signalRService.onChatTyping((event) => { if (event.conversationId === active) setTypingIds((ids) => event.typing ? [...new Set([...ids, event.userId])] : ids.filter((id) => id !== event.userId)); }); return () => { offMessage(); offUpdated(); offTyping(); void signalRService.leaveConversation(active); }; }, [active]);
   const send = useMutation({ mutationFn: () => chatApi.send(active!, content), onSuccess: async () => { setContent(""); signalRService.stopChatTyping(active!); await messages.refetch(); await conversations.refetch(); } });
-  const createDirect = async () => { if (!otherUserId.trim()) return; const conversation = await chatApi.direct(otherUserId.trim()); setOtherUserId(""); await client.invalidateQueries({ queryKey: ["chat-conversations"] }); setActive(conversation.id); };
+  const createDirect = useMutation({
+    mutationFn: (userId: string) => chatApi.direct(userId),
+    onSuccess: async (conversation) => {
+      setOtherUserId("");
+      await client.invalidateQueries({ queryKey: ["chat-conversations"] });
+      setActive(conversation.id);
+      show("Direct conversation opened.");
+    },
+    onError: (error) => show(error instanceof Error ? error.message : "Unable to start the conversation.", "error"),
+  });
+  const startDirect = () => {
+    const userId = otherUserId.trim();
+    if (!userIdPattern.test(userId)) {
+      show("Paste the complete user ID from the other user's profile.", "error");
+      return;
+    }
+    if (session?.user.id && userId.toLowerCase() === session.user.id.toLowerCase()) {
+      show("That is your own user ID. Ask the other user to share the ID shown in their profile.", "error");
+      return;
+    }
+    createDirect.mutate(userId);
+  };
   const orderedMessages = useMemo(
     () => [...(messages.data?.pages.flatMap((page) => page.items) ?? [])].reverse(),
     [messages.data?.pages],
@@ -41,18 +65,19 @@ export function ChatPage() {
             value={otherUserId}
             onChange={(event) => setOtherUserId(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && otherUserId.trim()) void createDirect();
+              if (event.key === "Enter" && otherUserId.trim()) startDirect();
             }}
             placeholder={pt("userIdDm")}
           />
           <button
             aria-label={pt("userIdDm")}
-            disabled={!otherUserId.trim()}
-            onClick={() => void createDirect()}
+            disabled={!otherUserId.trim() || createDirect.isPending}
+            onClick={startDirect}
           >
-            ＋
+            {createDirect.isPending ? "…" : "＋"}
           </button>
         </div>
+        <p className="direct-create-help">Paste the ID shown in Settings → Profile.</p>
 
         <nav aria-label={pt("messages")}>
           {conversations.isPending && (

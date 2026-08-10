@@ -14,4 +14,6 @@ export const projectApi = {
   removeMember: (id: string, userId: string) => apiClient.delete<void>(`/projects/${id}/members/${userId}`),
   acceptInvitation: (token: string) => apiClient.post<{ projectId: string }>("/projects/invitations/accept", { token }),
   rejectInvitation: (token: string) => apiClient.post<void>("/projects/invitations/reject", { token }),
+  acceptInvitationById: (id: string) => apiClient.post<{ projectId: string }>(`/projects/invitations/${id}/accept`),
+  rejectInvitationById: (id: string) => apiClient.post<void>(`/projects/invitations/${id}/reject`),
 };

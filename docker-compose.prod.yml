@@ -1,0 +1,137 @@
+name: coding-production
+
+x-api-environment: &api-environment
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_HTTP_PORTS: "8080"
+  ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:?required};Username=${POSTGRES_USER:?required};Password=${POSTGRES_PASSWORD:?required}
+  ConnectionStrings__Redis: redis:6379,password=${REDIS_PASSWORD:?required},abortConnect=false
+  Jwt__Issuer: ${JWT_ISSUER:?required}
+  Jwt__Audience: ${JWT_AUDIENCE:?required}
+  Jwt__Key: ${JWT_KEY:?required}
+  Cors__AllowedOrigins__0: https://${APP_DOMAIN:?required}
+  Cors__AllowedOrigins__1: https://${SHOWCASE_DOMAIN:?required}
+  AllowedHosts: ${API_DOMAIN:?required}
+  Database__ApplyMigrations: "false"
+  Database__SeedDevelopmentData: "false"
+  Smtp__Enabled: ${SMTP_ENABLED:-false}
+  Smtp__Host: ${SMTP_HOST:-}
+  Smtp__Port: ${SMTP_PORT:-587}
+  Smtp__EnableSsl: ${SMTP_ENABLE_SSL:-true}
+  Smtp__Username: ${SMTP_USERNAME:-}
+  Smtp__Password: ${SMTP_PASSWORD:-}
+  Smtp__FromEmail: ${SMTP_FROM_EMAIL:-}
+  Smtp__FromName: ${SMTP_FROM_NAME:-NexaCode}
+  Smtp__ClientBaseUrl: https://${APP_DOMAIN:?required}
+  AI__Provider: ${AI_PROVIDER:-OpenAI}
+  OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+  OpenAI__BaseUrl: ${OPENAI_BASE_URL:-https://api.openai.com/v1/}
+  OpenAI__Model: ${OPENAI_MODEL:-gpt-5.6-sol}
+  OpenAICompatible__BaseUrl: ${OPENAI_COMPATIBLE_BASE_URL:-https://ai.invalid/v1/}
+  OpenAICompatible__Model: ${OPENAI_COMPATIBLE_MODEL:-not-configured}
+  OpenAICompatible__ApiKey: ${OPENAI_COMPATIBLE_API_KEY:-}
+
+services:
+  nginx:
+    image: nginxinc/nginx-unprivileged:1.27-alpine
+    environment:
+      API_SERVER_NAME: ${API_DOMAIN:?required}
+    ports:
+      - "80:8080"
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/nginx-health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    networks: [edge, backend]
+
+  api:
+    image: ${API_IMAGE:-coding-api:latest}
+    build:
+      context: .
+      dockerfile: src/Coding.Api/Dockerfile
+    environment: *api-environment
+    expose: ["8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    volumes:
+      - avatar-data:/app/wwwroot/uploads/avatars
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    networks: [backend]
+
+  migrator:
+    image: ${API_IMAGE:-coding-api:latest}
+    build:
+      context: .
+      dockerfile: src/Coding.Api/Dockerfile
+    command: ["--migrate"]
+    environment: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["operations"]
+    restart: "no"
+    networks: [backend]
+
+  postgres:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?required}
+      POSTGRES_USER: ${POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    expose: ["5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    networks: [backend]
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?required}
+    expose: ["6379"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    networks: [backend]
+
+volumes:
+  postgres-data:
+  redis-data:
+  avatar-data:
+
+networks:
+  edge:
+  backend:
+    internal: true

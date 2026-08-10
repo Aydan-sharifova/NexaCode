@@ -142,6 +142,60 @@ public sealed class RejectProjectInvitationHandler(AppDbContext context, ICurren
     }
 }
 
+public sealed class AcceptProjectInvitationByIdHandler(AppDbContext context, ICurrentUser currentUser) : IRequestHandler<AcceptProjectInvitationByIdCommand, Guid>
+{
+    public async Task<Guid> Handle(AcceptProjectInvitationByIdCommand request, CancellationToken cancellationToken)
+    {
+        var strategy = context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+            var invitation = await context.ProjectInvitations.Include(item => item.Project)
+                .SingleOrDefaultAsync(item => item.ID == request.InvitationId, cancellationToken)
+                ?? throw new NotFoundException("Invitation not found.");
+            EnsureInvitationBelongsToCurrentUser(invitation, currentUser);
+            if (invitation.Status != InvitationStatus.Pending || invitation.ExpiresAt <= DateTime.UtcNow)
+                throw new ConflictException("This invitation is no longer active.");
+            if (await context.ProjectMembers.AnyAsync(member => member.ProjectId == invitation.ProjectId && member.UserId == currentUser.UserId, cancellationToken))
+                throw new ConflictException("You are already a project member.");
+            context.ProjectMembers.Add(new ProjectMember { ID = Guid.NewGuid(), ProjectId = invitation.ProjectId, UserId = currentUser.UserId, Role = invitation.Role, JoinedAt = DateTime.UtcNow });
+            var channelId = await context.Conversations.Where(item => item.ProjectId == invitation.ProjectId).Select(item => (Guid?)item.ID).SingleOrDefaultAsync(cancellationToken);
+            if (channelId.HasValue)
+                context.ConversationParticipants.Add(new ConversationParticipant { ID = Guid.NewGuid(), ConversationId = channelId.Value, UserId = currentUser.UserId, JoinedAt = DateTime.UtcNow });
+            invitation.Status = InvitationStatus.Accepted;
+            invitation.RespondedAt = DateTime.UtcNow;
+            await context.Notifications.Where(notification => notification.UserId == currentUser.UserId && notification.RelatedEntityId == invitation.ID && !notification.IsRead)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(notification => notification.IsRead, true).SetProperty(notification => notification.ReadAt, DateTime.UtcNow), cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return invitation.ProjectId;
+        });
+    }
+
+    internal static void EnsureInvitationBelongsToCurrentUser(ProjectInvitation invitation, ICurrentUser currentUser)
+    {
+        if (!string.Equals(invitation.Email, currentUser.Email, StringComparison.OrdinalIgnoreCase))
+            throw new ForbiddenException("This invitation belongs to another email address.");
+    }
+}
+
+public sealed class RejectProjectInvitationByIdHandler(AppDbContext context, ICurrentUser currentUser) : IRequestHandler<RejectProjectInvitationByIdCommand>
+{
+    public async Task Handle(RejectProjectInvitationByIdCommand request, CancellationToken cancellationToken)
+    {
+        var invitation = await context.ProjectInvitations.SingleOrDefaultAsync(item => item.ID == request.InvitationId, cancellationToken)
+            ?? throw new NotFoundException("Invitation not found.");
+        AcceptProjectInvitationByIdHandler.EnsureInvitationBelongsToCurrentUser(invitation, currentUser);
+        if (invitation.Status != InvitationStatus.Pending || invitation.ExpiresAt <= DateTime.UtcNow)
+            throw new ConflictException("This invitation is no longer active.");
+        invitation.Status = InvitationStatus.Rejected;
+        invitation.RespondedAt = DateTime.UtcNow;
+        await context.Notifications.Where(notification => notification.UserId == currentUser.UserId && notification.RelatedEntityId == invitation.ID && !notification.IsRead)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(notification => notification.IsRead, true).SetProperty(notification => notification.ReadAt, DateTime.UtcNow), cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+}
+
 public sealed class ChangeProjectMemberRoleHandler(AppDbContext context, ICurrentUser currentUser, INotificationService notifications) : IRequestHandler<ChangeProjectMemberRoleCommand>
 {
     public async Task Handle(ChangeProjectMemberRoleCommand request, CancellationToken cancellationToken)

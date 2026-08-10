@@ -4,10 +4,19 @@ import { Icon } from "../components/Icon";
 import { notificationApi } from "../features/notifications/api";
 import { useNotificationStore } from "../features/notifications/notificationStore";
 import { usePageTranslation } from "../hooks/usePageTranslation";
+import { projectApi } from "../features/projects/api";
+import { useToast } from "../contexts/ToastContext";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState } from "react";
 
 export function NotificationCenterPage() {
   const store = useNotificationStore();
   const { pt, locale } = usePageTranslation();
+  const { show } = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const highlightedInvitation = searchParams.get("invitation");
+  const [responding, setResponding] = useState<string>();
   const query = useInfiniteQuery({
     queryKey: ["notifications"],
     queryFn: ({ pageParam }) => notificationApi.list(pageParam),
@@ -21,6 +30,27 @@ export function NotificationCenterPage() {
     await notificationApi.readAll();
     store.read();
     await query.refetch();
+  };
+
+  const respondToInvitation = async (notificationId: string, invitationId: string, accept: boolean) => {
+    setResponding(invitationId);
+    try {
+      if (accept) {
+        const result = await projectApi.acceptInvitationById(invitationId);
+        store.read(notificationId);
+        show("Invitation accepted. Welcome to the project.");
+        navigate(`/projects/${result.projectId}/workspace`);
+      } else {
+        await projectApi.rejectInvitationById(invitationId);
+        store.read(notificationId);
+        show("Invitation rejected.");
+        await query.refetch();
+      }
+    } catch (error) {
+      show(error instanceof Error ? error.message : "Unable to respond to the invitation.", "error");
+    } finally {
+      setResponding(undefined);
+    }
   };
 
   return (
@@ -48,7 +78,7 @@ export function NotificationCenterPage() {
           )}
 
           {items.map((item) => (
-            <article key={item.id} className={item.isRead ? "" : "unread"}>
+            <article key={item.id} className={`${item.isRead ? "" : "unread"} ${item.relatedEntityId === highlightedInvitation ? "highlighted" : ""}`}>
               <i aria-hidden="true">{item.type.slice(0, 1)}</i>
               <div>
                 <header>
@@ -57,6 +87,10 @@ export function NotificationCenterPage() {
                 </header>
                 <p>{item.message}</p>
                 <small>{new Date(item.createdAt).toLocaleString(locale)}</small>
+                {item.type === "Invitation" && item.relatedEntityId && <div className="invitation-actions">
+                  <button disabled={responding === item.relatedEntityId} onClick={() => void respondToInvitation(item.id, item.relatedEntityId!, false)}>Reject</button>
+                  <button className="accept" disabled={responding === item.relatedEntityId} onClick={() => void respondToInvitation(item.id, item.relatedEntityId!, true)}>{responding === item.relatedEntityId ? "Responding…" : "Accept invitation"}</button>
+                </div>}
               </div>
               {!item.isRead && (
                 <button onClick={async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Icon, type IconName } from "../components/Icon";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
@@ -30,12 +30,14 @@ export function DashboardLayout() {
   const topbarAccountRef = useRef<HTMLDivElement>(null);
   const [searchOpen, setSearchOpen] = useState(false); const [createOpen, setCreateOpen] = useState(false);
   const { session, logout } = useAuth();
+  const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const { t } = useLanguage();
   const { pt } = usePageTranslation();
   const projects = useProjects(); const createProject = useCreateProject(); const navigate = useNavigate(); const { show } = useToast();
   const user = session?.user;
   const isDemo = Boolean(user?.isDemo);
+  const projectId = location.pathname.match(/^\/projects\/([^/]+)/)?.[1];
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}` : "AD";
   useEffect(() => { const shortcut = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setSearchOpen(true); window.setTimeout(() => document.getElementById("global-search")?.focus(), 0); } }; window.addEventListener("keydown", shortcut); return () => window.removeEventListener("keydown", shortcut); }, []);
   useEffect(() => {
@@ -77,10 +79,11 @@ export function DashboardLayout() {
   return (
     <div className="dashboard-shell">
       <aside className={`sidebar ${sidebarOpen ? "is-open" : ""}`}>
-        <div className="sidebar-brand"><span className="brand-mark">C</span><span>Coding</span>{isDemo && <b className="sidebar-demo-label">Demo</b>}</div>
+        <div className="sidebar-brand"><span className="brand-mark">N</span><span>NexaCode</span>{isDemo && <b className="sidebar-demo-label">Demo</b>}</div>
         <nav className="sidebar-nav" aria-label={t("openNavigation")}>
           <p>{t("workspace")}</p>
           {navItems.map((item) => <NavLink key={item.label} to={item.path} end={item.path === "/dashboard"} onClick={() => setSidebarOpen(false)}><Icon name={item.icon} />{t(item.label)}</NavLink>)}
+          {projectId && <><p>PROJECT TOOLS</p><NavLink to={`/projects/${projectId}/workspace`}><Icon name="code" />Workspace</NavLink><NavLink to={`/projects/${projectId}/board`}><Icon name="check" />Tasks</NavLink><NavLink to={`/projects/${projectId}/architecture`}><Icon name="activity" />Architecture</NavLink><NavLink to={`/projects/${projectId}/database`}><Icon name="dashboard" />Database</NavLink><NavLink to={`/projects/${projectId}/api`}><Icon name="code" />API</NavLink><NavLink to={`/projects/${projectId}/versions`}><Icon name="trend" />Versions</NavLink><NavLink to={`/projects/${projectId}/approvals`}><Icon name="check" />AI approvals</NavLink></>}
           {user?.roles.some((role) => ["SuperAdmin", "Admin"].includes(role)) && <><NavLink to="/admin" onClick={() => setSidebarOpen(false)}><Icon name="settings" />{t("admin")}</NavLink><NavLink to="/admin/activity" onClick={() => setSidebarOpen(false)}><Icon name="activity" />{t("activity")}</NavLink></>}
           <p>{t("manage")}</p>
           <NavLink to="/settings"><Icon name="settings" />{t("settings")}</NavLink>

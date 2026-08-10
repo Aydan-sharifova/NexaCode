@@ -400,3 +400,17 @@ public interface IAiToolExecutionService
 {
     Task<AiToolDispatchResult> DispatchAsync(AiToolDispatchRequest request, CancellationToken cancellationToken);
 }
+
+public sealed record AiApprovalDetails(
+    Guid Id, Guid AgentRunId, Guid ProjectId, string ProjectName, string Goal,
+    Guid ToolCallId, string ToolName, AiToolRiskLevel RiskLevel,
+    AiApprovalStatus Status, string ArgumentsJson, DateTime CreatedAt,
+    DateTime ExpiresAt, DateTime? RespondedAt, string? ResultSummary, string? ErrorMessage);
+
+public interface IAiApprovalService
+{
+    Task<IReadOnlyList<AiApprovalDetails>> ListAsync(Guid? projectId, CancellationToken cancellationToken);
+    Task<AiApprovalDetails> GetAsync(Guid approvalId, CancellationToken cancellationToken);
+    Task<AiApprovalDetails> ApproveAsync(Guid approvalId, CancellationToken cancellationToken);
+    Task<AiApprovalDetails> RejectAsync(Guid approvalId, CancellationToken cancellationToken);
+}

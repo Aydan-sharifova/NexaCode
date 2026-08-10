@@ -15,5 +15,10 @@
 **/TestResults/
 **/playwright-report/
 **/test-results/
+backups/
+*.pem
+*.key
+*.p12
+secrets/
 *.user
 *.suo

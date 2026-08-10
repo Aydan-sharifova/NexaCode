@@ -21,7 +21,7 @@ export function Dialog({ open, title, description, footer, onClose, initialFocus
     };
     document.addEventListener("keydown",keyDown);
     return()=>{window.cancelAnimationFrame(frame);document.removeEventListener("keydown",keyDown);document.body.classList.remove("dialog-open");previous?.focus();};
-  },[open,onClose,initialFocusRef]);
+  },[open,initialFocusRef]);
   if (!open) return null;
   return <div className="dialog-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={card} tabIndex={-1} className="dialog-card" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description?descriptionId:undefined}><button type="button" className="dialog-close" onClick={onClose} aria-label="Close dialog">×</button><header><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId}>{description}</p>}</header><div className="dialog-body">{children}</div>{footer && <footer>{footer}</footer>}</section></div>;
 }

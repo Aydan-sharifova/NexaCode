@@ -1,28 +1,22 @@
 ﻿<Properties StartupConfiguration="{E922C6EC-4C3F-4919-A216-7B43E4DE5F00}|https">
-  <MonoDevelop.Ide.ItemProperties.Coding.Application FirstBuild="True" />
   <MonoDevelop.Ide.ItemProperties.src.Coding.Api PreferredExecutionTarget="/Applications/Google Chrome.app" />
-  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
   <MonoDevelop.Ide.ItemProperties.Coding PreferredExecutionTarget="/Applications/Google Chrome.app" />
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
   <MultiItemStartupConfigurations />
+  <MonoDevelop.Ide.ItemProperties.Coding.Application FirstBuild="True" />
   <MonoDevelop.Ide.DebuggingService.Breakpoints>
     <BreakpointStore />
   </MonoDevelop.Ide.DebuggingService.Breakpoints>
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
-  <MonoDevelop.Ide.Workbench ActiveDocument="tests/Coding.UnitTests/CoreWorkflowValidationTests.cs">
+  <MonoDevelop.Ide.Workbench ActiveDocument="src/Coding.Api/Coding.http">
     <Files>
       <File FileName="src/Coding.Api/Controllers/AdminController.cs" />
-      <File FileName="src/Coding.Api/Controllers/RefreshTokenController.cs" />
-      <File FileName="src/Coding.Api/Controllers/RoleController.cs" />
-      <File FileName="src/Coding.Api/Controllers/UserController.cs" />
-      <File FileName="src/Coding.Api/Controllers/UserRoleController.cs" />
-      <File FileName="src/Coding.Api/Controllers/WorkspaceController.cs" />
       <File FileName="src/Coding.Api/Infrastructure/GlobalExceptionHandler.cs" />
       <File FileName="src/Coding.Application/Abstractions/ICurrentUser.cs" />
       <File FileName="src/Coding.Application/Behaviors/ValidationBehavior.cs" />
       <File FileName="src/Coding.Application/DTOS/CodeHistory/CodeHistoryCreateDTO.cs" />
       <File FileName="src/Coding.Application/DTOS/CodeHistory/CodeHistoryGetDTO.cs" />
       <File FileName="src/Coding.Application/DTOS/CodeHistory/CodeHistoryUpdateDTO.cs" />
-      <File FileName="src/Coding.Infrastructure/Services/Implaments/CrudService.cs" />
       <File FileName="src/Coding.Api/Infrastructure/CurrentUser.cs" />
       <File FileName="src/Coding.Infrastructure/Authentication/AuthenticationService.cs" />
       <File FileName="src/Coding.Infrastructure/Authentication/IdentityPasswordService.cs" />
@@ -34,24 +28,22 @@
       <File FileName="src/Coding.Api/Configuration/ApiServiceCollectionExtensions.cs" />
       <File FileName="src/Coding.Application/DTOS/User/UserCreateDTO.cs" />
       <File FileName="src/Coding.Application/DTOS/User/UserGetDTO.cs" />
-      <File FileName="src/Coding.Api/Program.cs" />
-      <File FileName="src/Coding.Api/Dockerfile" />
-      <File FileName="src/Coding.Api/Coding.http" />
+      <File FileName="src/Coding.Api/Program.cs" Line="125" Column="1" />
+      <File FileName="src/Coding.Api/Dockerfile" Line="1" Column="1" />
+      <File FileName="src/Coding.Api/Coding.http" Line="1" Column="1" />
       <File FileName="src/Coding.Application/Exceptions/ConflictException.cs" />
       <File FileName="src/Coding.Application/Exceptions/ForbiddenException.cs" />
       <File FileName="src/Coding.Application/Exceptions/NotFoundException.cs" />
       <File FileName="src/Coding.Application/Exceptions/UnauthorizedException.cs" />
-      <File FileName="src/Coding.Application/Extensions/FileExtention.cs" />
       <File FileName="src/Coding.Application/Features/FileExplorer/FileExplorerContracts.cs" />
       <File FileName="src/Coding.Application/Features/Projects/ProjectContracts.cs" />
-      <File FileName="src/Coding.Application/Services/Interfaces/IAuthenticationService.cs" />
-      <File FileName="src/Coding.Application/Services/Interfaces/IEmailSender.cs" />
-      <File FileName="src/Coding.Application/Services/Interfaces/IRoleService.cs" />
+      <File FileName="src/Coding.Application/Services/Interfaces/IAuthenticationService.cs" Line="1" Column="1" />
+      <File FileName="src/Coding.Application/Services/Interfaces/IEmailSender.cs" Line="1" Column="1" />
+      <File FileName="src/Coding.Application/Services/Interfaces/IRoleService.cs" Line="1" Column="1" />
       <File FileName="src/Coding.Domain/Models/AIRequest.cs" />
       <File FileName="src/Coding.Domain/Models/User.cs" />
       <File FileName="src/Coding.Api/appsettings.json" />
       <File FileName="src/Coding.Api/Properties/launchSettings.json" />
-      <File FileName="src/Coding.Api/Controllers/NotificationController.cs" />
       <File FileName="src/Coding.Api/Configuration/SwaggerAuthorizationOperationFilter.cs" />
       <File FileName="src/Coding.Api/Collaboration/CollaborationContracts.cs" />
       <File FileName="src/Coding.Api/Collaboration/CollaborationHub.cs" />
@@ -62,21 +54,23 @@
       <File FileName="src/Coding.Infrastructure/Data/AppDbContext.cs" />
       <File FileName="src/Coding.Infrastructure/Activities/ActivityLogging.cs" />
       <File FileName="src/Coding.Application/Features/AiAssistant/AiContracts.cs" />
-      <File FileName="src/Coding.Api/Controllers/CrudControllerBase.cs" />
       <File FileName="src/Coding.Api/Controllers/ChatController.cs" />
       <File FileName="src/Coding.Infrastructure/DependencyInjection.cs" />
-      <File FileName="tests/Coding.UnitTests/CoreWorkflowValidationTests.cs" Line="1" Column="1" />
+      <File FileName="tests/Coding.UnitTests/CoreWorkflowValidationTests.cs" />
+      <File FileName="src/Coding.Application/Behaviors/RequestLoggingBehavior.cs" Line="8" Column="35" />
     </Files>
     <Pads>
       <Pad Id="ProjectPad">
         <State name="__root__">
-          <Node name="Coding" expanded="True">
+          <Node name="Coding">
             <Node name="src" expanded="True">
               <Node name="Coding.Api" expanded="True">
-                <Node name="Controllers" expanded="True" />
+                <Node name="Coding.http" selected="True" />
+              </Node>
+              <Node name="Coding.Application" expanded="True">
+                <Node name="Behaviors" expanded="True" />
               </Node>
             </Node>
-            <Node name="Coding.UnitTests" expanded="True" />
           </Node>
         </State>
       </Pad>

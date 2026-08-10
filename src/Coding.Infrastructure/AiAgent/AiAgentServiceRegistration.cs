@@ -33,6 +33,7 @@ public static class AiAgentServiceRegistration
         services.AddScoped<IAiToolDescriptorSource, TypeAiToolDescriptorSource>();
         services.AddScoped<IAiToolRegistry, AiToolRegistry>();
         services.AddScoped<IAiToolExecutionService, AiToolExecutionService>();
+        services.AddScoped<IAiApprovalService, AiApprovalService>();
 
         return services;
     }

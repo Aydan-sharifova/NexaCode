@@ -320,6 +320,16 @@ Never expose an API key through `VITE_*`. Rotate a key immediately if it appears
 
 ## Deployment
 
+The production runbook is [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). See the
+[deployment audit](docs/DEPLOYMENT_AUDIT.md), [domain/TLS guide](docs/DOMAIN_AND_SSL.md),
+[frontend](docs/FRONTEND_DEPLOYMENT.md), [showcase](docs/SHOWCASE_DEPLOYMENT.md),
+[AI](docs/AI_DEPLOYMENT.md), [execution security](docs/EXECUTION_DEPLOYMENT.md), and
+[backup/restore](docs/BACKUP_AND_RESTORE.md) guides before operating a release.
+
+The production API edge uses `docker-compose.prod.yml`; the React app and showcase
+are deployed independently. The repository does not yet contain a secure execution
+worker, so untrusted code execution must remain unavailable.
+
 1. Require green CI on `main`.
 2. Review schema changes and an idempotent migration script.
 3. Build immutable `v1.0.0` images; publishing is enabled by repository variable `PUBLISH_IMAGES=true`.

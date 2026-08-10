@@ -10,6 +10,8 @@ using Coding.Application.Features.Activities;
 using Coding.Infrastructure.Activities;
 using Coding.Application.Features.UserSettings;
 using Coding.Infrastructure.UserSettings;
+using Coding.Infrastructure.DatabaseMetadata;
+using Coding.Application.Features.DatabaseMetadata;
 using Coding.Application.Features.AiAssistant;
 using Coding.Infrastructure.AiAssistant;
 using Coding.Infrastructure.AiAgent;
@@ -44,7 +46,7 @@ public static class DependencyInjection
             }));
 
         services.AddHealthChecks()
-            .AddDbContextCheck<AppDbContext>("postgresql");
+            .AddDbContextCheck<AppDbContext>("postgresql", tags: ["ready"]);
 
         services.AddScoped<ICollaborativeDocumentStore, CollaborativeDocumentStore>();
         services.AddSingleton<CollaborativeContentMaterializer>();
@@ -55,7 +57,14 @@ public static class DependencyInjection
         services.AddSingleton<ICacheService, MemoryCacheService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddOptions<SmtpOptions>().Bind(configuration.GetSection(SmtpOptions.SectionName))
-            .Validate(x => !x.Enabled || (!string.IsNullOrWhiteSpace(x.Host) && x.Port is > 0 and <= 65535 && !string.IsNullOrWhiteSpace(x.FromEmail) && Uri.TryCreate(x.ClientBaseUrl, UriKind.Absolute, out _)), "Enabled SMTP requires a valid host, port, from address, and client base URL.")
+            .Validate(x => !x.Enabled || (
+                !string.IsNullOrWhiteSpace(x.Host) &&
+                x.Port is > 0 and <= 65535 &&
+                !string.IsNullOrWhiteSpace(x.Username) &&
+                !string.IsNullOrWhiteSpace(x.Password) &&
+                !string.IsNullOrWhiteSpace(x.FromEmail) &&
+                Uri.TryCreate(x.ClientBaseUrl, UriKind.Absolute, out _)),
+                "Enabled SMTP requires a host, valid port, username, password, from address, and absolute client base URL.")
             .ValidateOnStart();
         services.AddScoped<LoggingEmailSender>();
         services.AddScoped<SmtpEmailSender>();
@@ -81,7 +90,8 @@ public static class DependencyInjection
         services.AddHostedService<DemoResetBackgroundService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IActivityLogger, ActivityLogger>();
-        services.AddScoped<IFileStorageService, LocalFileStorageService>();
+            services.AddScoped<IFileStorageService, LocalFileStorageService>();
+            services.AddScoped<IDatabaseMetadataProvider, EfCoreDatabaseMetadataProvider>();
         services.AddOptions<OpenAiOptions>()
             .Bind(configuration.GetSection(OpenAiOptions.SectionName));
         services.AddOptions<AiProviderOptions>()

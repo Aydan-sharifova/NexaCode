@@ -122,6 +122,18 @@ public static class ApiServiceCollectionExtensions
                         QueueLimit = 0,
                         AutoReplenishment = true
                     }));
+            options.AddPolicy("invitations", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.User.FindFirst("sub")?.Value
+                    ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                    ?? "anonymous",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 20,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true
+                    }));
             options.AddPolicy("realtime", httpContext =>
                 RateLimitPartition.GetConcurrencyLimiter(
                     httpContext.User.Identity?.Name
@@ -140,7 +152,7 @@ public static class ApiServiceCollectionExtensions
             services.AddStackExchangeRedisCache(options =>
                 options.Configuration = redisConnection);
             services.AddHealthChecks()
-                .AddCheck("redis", new RedisHealthCheck(redisConnection));
+                .AddCheck("redis", new RedisHealthCheck(redisConnection), tags: ["ready"]);
         }
 
         return services;

@@ -3,6 +3,7 @@ using Coding.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Coding.Controllers;
 
@@ -40,16 +41,32 @@ public sealed class ProjectController(ISender sender) : ControllerBase
     public async Task<IActionResult> ChangeRole(Guid projectId, Guid userId, ChangeRoleRequest request, CancellationToken cancellationToken) { await sender.Send(new ChangeProjectMemberRoleCommand(projectId, userId, request.Role), cancellationToken); return NoContent(); }
 
     [HttpPost("{projectId:guid}/invitations")]
+    [EnableRateLimiting("invitations")]
     public Task<CreatedInvitation> Invite(Guid projectId, InviteMemberRequest request, CancellationToken cancellationToken) => sender.Send(new InviteProjectMemberCommand(projectId, request.Email, request.Role), cancellationToken);
 
     [HttpGet("{projectId:guid}/invitations")]
     public Task<IReadOnlyList<ProjectInvitationDetails>> Invitations(Guid projectId, CancellationToken cancellationToken) => sender.Send(new ListPendingInvitationsQuery(projectId), cancellationToken);
 
     [HttpPost("invitations/accept")]
+    [EnableRateLimiting("invitations")]
     public async Task<ActionResult<object>> Accept(InvitationTokenRequest request, CancellationToken cancellationToken) => Ok(new { ProjectId = await sender.Send(new AcceptProjectInvitationCommand(request.Token), cancellationToken) });
 
     [HttpPost("invitations/reject")]
+    [EnableRateLimiting("invitations")]
     public async Task<IActionResult> Reject(InvitationTokenRequest request, CancellationToken cancellationToken) { await sender.Send(new RejectProjectInvitationCommand(request.Token), cancellationToken); return NoContent(); }
+
+    [HttpPost("invitations/{invitationId:guid}/accept")]
+    [EnableRateLimiting("invitations")]
+    public async Task<ActionResult<object>> AcceptById(Guid invitationId, CancellationToken cancellationToken) =>
+        Ok(new { ProjectId = await sender.Send(new AcceptProjectInvitationByIdCommand(invitationId), cancellationToken) });
+
+    [HttpPost("invitations/{invitationId:guid}/reject")]
+    [EnableRateLimiting("invitations")]
+    public async Task<IActionResult> RejectById(Guid invitationId, CancellationToken cancellationToken)
+    {
+        await sender.Send(new RejectProjectInvitationByIdCommand(invitationId), cancellationToken);
+        return NoContent();
+    }
 }
 
 public sealed record CreateProjectRequest(string Name, string? Description, string DefaultLanguage, bool IsPublic);

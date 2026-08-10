@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Coding.Api.Collaboration;
 using Coding.Api.Infrastructure;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -117,6 +118,14 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
+    app.MapHealthChecks("/health/live", new HealthCheckOptions
+    {
+        Predicate = _ => false
+    });
+    app.MapHealthChecks("/health/ready", new HealthCheckOptions
+    {
+        Predicate = registration => registration.Tags.Contains("ready")
+    });
     app.MapControllers();
     app.MapHub<CollaborationHub>("/hubs/collaboration");
 

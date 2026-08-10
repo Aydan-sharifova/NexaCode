@@ -28,7 +28,7 @@ async function getError(response: Response): Promise<ApiError> {
     ? Object.values(problem.errors).flat()[0]
     : undefined;
   const gatewayMessage = [502, 503, 504].includes(response.status)
-    ? "The API is unavailable. Make sure the backend is running on port 5192."
+    ? "The API is temporarily unavailable. Please try again shortly."
     : undefined;
   const safeServerText = !problem && responseBody && responseBody.length <= 300 && !responseBody.includes("<")
     ? responseBody
@@ -75,7 +75,12 @@ async function request<TResponse>(path: string, options: RequestOptions = {}): P
       },
     });
   } catch {
-    throw new ApiError("Cannot connect to the API. Make sure the backend is running on port 5192.", 0);
+    throw new ApiError(
+      import.meta.env.DEV
+        ? "Cannot connect to the API. Make sure the backend is running on port 5192."
+        : "Cannot connect to the API. Please try again shortly.",
+      0,
+    );
   }
 
   if (response.status === 401 && retryOnUnauthorized && !path.startsWith("/auth/")) {

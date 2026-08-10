@@ -1,0 +1,3 @@
+import { apiClient } from "../../services/apiClient";
+export interface AiApproval { id:string; agentRunId:string; projectId:string; projectName:string; goal:string; toolCallId:string; toolName:string; riskLevel:string|number; status:string|number; argumentsJson:string; createdAt:string; expiresAt:string; respondedAt?:string; resultSummary?:string; errorMessage?:string }
+export const approvalApi={list:(projectId:string)=>apiClient.get<AiApproval[]>(`/ai/approvals?projectId=${encodeURIComponent(projectId)}`),approve:(id:string)=>apiClient.post<AiApproval>(`/ai/approvals/${id}/approve`),reject:(id:string)=>apiClient.post<AiApproval>(`/ai/approvals/${id}/reject`)};

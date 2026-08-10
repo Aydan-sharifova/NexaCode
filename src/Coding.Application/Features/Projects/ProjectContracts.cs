@@ -16,6 +16,8 @@ public sealed record DeleteProjectCommand(Guid ProjectId) : IRequest;
 public sealed record InviteProjectMemberCommand(Guid ProjectId, string Email, ProjectRole Role) : IRequest<CreatedInvitation>;
 public sealed record AcceptProjectInvitationCommand(string Token) : IRequest<Guid>;
 public sealed record RejectProjectInvitationCommand(string Token) : IRequest;
+public sealed record AcceptProjectInvitationByIdCommand(Guid InvitationId) : IRequest<Guid>;
+public sealed record RejectProjectInvitationByIdCommand(Guid InvitationId) : IRequest;
 public sealed record ChangeProjectMemberRoleCommand(Guid ProjectId, Guid UserId, ProjectRole Role) : IRequest;
 public sealed record RemoveProjectMemberCommand(Guid ProjectId, Guid UserId) : IRequest;
 public sealed record ListMyProjectsQuery : IRequest<IReadOnlyList<ProjectListItem>>;

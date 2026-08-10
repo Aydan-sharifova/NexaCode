@@ -12,7 +12,13 @@ ASP.NET Core converts `__` to a configuration path separator. Compose maps conve
 | `Jwt__Audience` | No | Stable client audience |
 | `Jwt__Key` | Yes | Random value of at least 32 bytes; rotate with an overlap strategy |
 | `Cors__AllowedOrigins__0` | No | Exact HTTPS origin; add indices for more origins |
-| `Smtp__Password` | Yes | Required only when SMTP is enabled |
+| `Smtp__Enabled` | No | Enables real delivery; keep false when no provider is configured |
+| `Smtp__Host` | No | Gmail uses `smtp.gmail.com` |
+| `Smtp__Port` | No | Use `587` with STARTTLS |
+| `Smtp__Username` | Yes | Provider login; for Gmail this is the sending account |
+| `Smtp__Password` | Yes | Gmail requires an app password when SMTP is enabled; never commit it |
+| `Smtp__FromEmail` | No | Verified sender address, normally matching the Gmail login |
+| `Smtp__ClientBaseUrl` | No | Public frontend origin used in verification and reset links |
 | `AI__Provider` | No | `Development`, `Ollama`, `OpenAICompatible`, or `OpenAI` |
 | `OpenAICompatible__BaseUrl` | No | Ollama/vLLM OpenAI-compatible `/v1/` base URL |
 | `OpenAICompatible__Model` | No | Local or self-hosted model name |

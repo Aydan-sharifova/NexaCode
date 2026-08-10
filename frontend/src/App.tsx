@@ -26,6 +26,7 @@ const HelpCenterPage = lazy(() => import("./pages/HelpCenterPage").then((module)
 const TeamPage = lazy(() => import("./pages/TeamPage").then((module) => ({ default: module.TeamPage })));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
 const AdminPage = lazy(() => import("./pages/AdminPage").then((module) => ({ default: module.AdminPage })));
+const ProjectToolPage = lazy(() => import("./pages/ProjectToolPage").then((module) => ({ default: module.ProjectToolPage })));
 
 function ProtectedDashboard() {
   const { session, isInitializing } = useAuth();
@@ -75,6 +76,12 @@ export default function App() {
         <Route path="/projects/:projectId/settings" element={<Suspense fallback={<div className="route-loader" role="status">Loading project…</div>}><ProjectSettingsPage /></Suspense>} />
         <Route path="/projects/:projectId/workspace" element={<Suspense fallback={<div className="route-loader" role="status">Loading workspace…</div>}><FileExplorerPage /></Suspense>} />
         <Route path="/projects/:projectId/board" element={<Suspense fallback={<div className="route-loader" role="status">Loading board…</div>}><KanbanPage /></Suspense>} />
+        <Route path="/projects/:projectId/architecture" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="architecture" /></Suspense>} />
+        <Route path="/projects/:projectId/database" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="database" /></Suspense>} />
+        <Route path="/projects/:projectId/api" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="api" /></Suspense>} />
+        <Route path="/projects/:projectId/versions" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="versions" /></Suspense>} />
+        <Route path="/projects/:projectId/approvals" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="approvals" /></Suspense>} />
+        <Route path="/projects/:projectId/billing" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="billing" /></Suspense>} />
         <Route element={<RequireSystemRole roles={["SuperAdmin", "Admin"]} />}>
           <Route path="/admin" element={<Suspense fallback={<div className="route-loader" role="status">Loading administration…</div>}><AdminPage /></Suspense>} />
           <Route path="/admin/activity" element={<Suspense fallback={<div className="route-loader" role="status">Loading activity…</div>}><AdminActivityPage /></Suspense>} />

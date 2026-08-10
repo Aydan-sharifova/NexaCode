@@ -10,7 +10,6 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Net.Mail;
 using System.Text;
 using Coding.Application.Features.Activities;
 using Coding.Application.Features.Demo;
@@ -93,7 +92,7 @@ public sealed class AuthenticationService(
                 await transaction.CommitAsync(cancellationToken);
                 return response;
             }
-            catch (SmtpException exception)
+            catch (EmailDeliveryException exception)
             {
                 await transaction.RollbackAsync(cancellationToken);
                 context.ChangeTracker.Clear();
