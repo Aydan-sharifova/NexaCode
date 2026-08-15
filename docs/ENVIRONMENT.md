@@ -15,6 +15,7 @@ ASP.NET Core converts `__` to a configuration path separator. Compose maps conve
 | `Smtp__Enabled` | No | Enables real delivery; keep false when no provider is configured |
 | `Smtp__Host` | No | Gmail uses `smtp.gmail.com` |
 | `Smtp__Port` | No | Use `587` with STARTTLS |
+| `Smtp__UseSsl` | No | `true` uses STARTTLS on port 587 (or implicit TLS on port 465) |
 | `Smtp__Username` | Yes | Provider login; for Gmail this is the sending account |
 | `Smtp__Password` | Yes | Gmail requires an app password when SMTP is enabled; never commit it |
 | `Smtp__FromEmail` | No | Verified sender address, normally matching the Gmail login |
@@ -29,3 +30,22 @@ ASP.NET Core converts `__` to a configuration path separator. Compose maps conve
 | `Database__SeedDevelopmentData` | No | Must remain false in production |
 
 Validate configuration in a staging environment. Do not log environment dumps. Restrict secret-read permissions to the deployment identity, audit access, and rotate database, Redis, JWT, SMTP, and AI credentials independently.
+
+## Local Gmail SMTP
+
+Enable Google 2-Step Verification, create a Google App Password, and store it with
+.NET User Secrets. A normal Google account password will not work and must not be
+stored in this repository.
+
+```bash
+cd /Users/aydansrifova/Desktop/Coding/src/Coding.Api
+dotnet user-secrets set "Smtp:Enabled" "true"
+dotnet user-secrets set "Smtp:Host" "smtp.gmail.com"
+dotnet user-secrets set "Smtp:Port" "587"
+dotnet user-secrets set "Smtp:UseSsl" "true"
+dotnet user-secrets set "Smtp:Username" "YOUR_EMAIL@gmail.com"
+dotnet user-secrets set "Smtp:Password" "YOUR_GOOGLE_APP_PASSWORD"
+dotnet user-secrets set "Smtp:FromEmail" "YOUR_EMAIL@gmail.com"
+dotnet user-secrets set "Smtp:FromName" "NexaCode"
+dotnet user-secrets set "Smtp:ClientBaseUrl" "http://localhost:5173"
+```

@@ -10,6 +10,7 @@ using Coding.Models;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace Coding.Infrastructure.Chat;
 
@@ -81,16 +82,22 @@ public sealed class CreateDirectConversationHandler(AppDbContext db, ICurrentUse
 {
     public async Task<ConversationItem> Handle(CreateDirectConversationCommand request, CancellationToken ct)
     {
-        if (request.OtherUserId == currentUser.UserId) throw new ConflictException("You cannot create a direct conversation with yourself.");
-        if (!await db.Users.AnyAsync(user => user.ID == request.OtherUserId && !user.IsDeleted, ct)) throw new NotFoundException("User not found.");
-        var key = ChatSupport.DirectKey(currentUser.UserId, request.OtherUserId);
+        var identifier = request.OtherUserId.Trim().TrimStart('@');
+        var otherUserId = await db.Users.AsNoTracking()
+            .Where(user => !user.IsDeleted && !user.IsSuspended &&
+                (user.PublicId == identifier.ToUpper() || EF.Functions.ILike(user.Email, identifier)))
+            .Select(user => (Guid?)user.ID)
+            .SingleOrDefaultAsync(ct)
+            ?? throw new NotFoundException("User not found.");
+        if (otherUserId == currentUser.UserId) throw new ConflictException("You cannot create a direct conversation with yourself.");
+        var key = ChatSupport.DirectKey(currentUser.UserId, otherUserId);
         var existingId = await db.Conversations.Where(item => item.DirectKey == key).Select(item => (Guid?)item.ID).SingleOrDefaultAsync(ct);
         if (!existingId.HasValue)
         {
             var now = DateTime.UtcNow;
             var conversation = new Conversation { ID = Guid.NewGuid(), Type = ConversationType.Direct, DirectKey = key, CreatedAt = now, UpdatedAt = now };
             conversation.Participants.Add(new ConversationParticipant { ID = Guid.NewGuid(), UserId = currentUser.UserId, JoinedAt = now });
-            conversation.Participants.Add(new ConversationParticipant { ID = Guid.NewGuid(), UserId = request.OtherUserId, JoinedAt = now });
+            conversation.Participants.Add(new ConversationParticipant { ID = Guid.NewGuid(), UserId = otherUserId, JoinedAt = now });
             db.Conversations.Add(conversation);
             try { await db.SaveChangesAsync(ct); existingId = conversation.ID; }
             catch (DbUpdateException) { db.ChangeTracker.Clear(); existingId = await db.Conversations.Where(item => item.DirectKey == key).Select(item => (Guid?)item.ID).SingleAsync(ct); }
@@ -99,7 +106,12 @@ public sealed class CreateDirectConversationHandler(AppDbContext db, ICurrentUse
     }
 }
 
-public sealed class SendMessageHandler(AppDbContext db, ICurrentUser currentUser, INotificationService notifications, IChatRealtimePublisher realtime) : IRequestHandler<SendMessageCommand, ChatMessageItem>
+public sealed class SendMessageHandler(
+    AppDbContext db,
+    ICurrentUser currentUser,
+    INotificationService notifications,
+    IChatRealtimePublisher realtime,
+    ILogger<SendMessageHandler> logger) : IRequestHandler<SendMessageCommand, ChatMessageItem>
 {
     public async Task<ChatMessageItem> Handle(SendMessageCommand request, CancellationToken ct)
     {
@@ -130,23 +142,46 @@ public sealed class SendMessageHandler(AppDbContext db, ICurrentUser currentUser
         var dto = new ChatMessageItem(message.ID, message.ConversationId, new ChatUser(sender.ID, sender.UserName, sender.FirstName + " " + sender.LastName, sender.AvatarUrl), message.Content, now, false, [currentUser.UserId]);
         var notificationRequests = new List<CreateNotificationRequest>();
         if (conversation.Type == ConversationType.Direct)
-            notificationRequests.AddRange(participantIds.Where(id => id != currentUser.UserId).Select(id => new CreateNotificationRequest(id, NotificationType.DirectMessage, sender.UserName, message.Content, message.ID, nameof(ChatMessage))));
+            notificationRequests.AddRange(participantIds.Where(id => id != currentUser.UserId).Select(id =>
+                new CreateNotificationRequest(id, NotificationType.DirectMessage, sender.UserName,
+                    message.Content, request.ConversationId, nameof(Conversation))));
 
         if (mentioned.Count > 0)
         {
             notificationRequests.AddRange(mentioned.Select(user => new CreateNotificationRequest(user.Id, NotificationType.UserMention, $"{sender.UserName} mentioned you", message.Content, message.ID, nameof(ChatMessage))));
         }
 
-        if (notificationRequests.Count > 0) await notifications.CreateManyAsync(notificationRequests.DistinctBy(item => (item.UserId, item.Type)), ct);
-        await realtime.MessageReceivedAsync(dto, participantIds, ct);
-        await realtime.ConversationUpdatedAsync(request.ConversationId, participantIds, ct);
+        try
+        {
+            if (notificationRequests.Count > 0)
+                await notifications.CreateManyAsync(
+                    notificationRequests.DistinctBy(item => (item.UserId, item.Type)), ct);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            logger.LogError(error,
+                "Message {MessageId} was saved, but notifications could not be delivered.",
+                message.ID);
+        }
+
+        try
+        {
+            await realtime.MessageReceivedAsync(dto, participantIds, ct);
+            await realtime.ConversationUpdatedAsync(request.ConversationId, participantIds, ct);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            logger.LogError(error,
+                "Message {MessageId} was saved, but its real-time event could not be delivered.",
+                message.ID);
+        }
         return dto;
     }
 }
 
 internal sealed record MentionedUser(Guid Id, string UserName);
 
-public sealed class MarkConversationAsReadHandler(AppDbContext db, ICurrentUser currentUser, IChatRealtimePublisher realtime) : IRequestHandler<MarkConversationAsReadCommand>
+public sealed class MarkConversationAsReadHandler(AppDbContext db, ICurrentUser currentUser, IChatRealtimePublisher realtime, INotificationService notifications) : IRequestHandler<MarkConversationAsReadCommand>
 {
     public async Task Handle(MarkConversationAsReadCommand request, CancellationToken ct)
     {
@@ -160,6 +195,7 @@ public sealed class MarkConversationAsReadHandler(AppDbContext db, ICurrentUser 
         db.MessageReadReceipts.AddRange(unreadMessageIds.Select(id => new MessageReadReceipt { MessageId = id, UserId = currentUser.UserId, ReadAt = now }));
         participant.LastReadAt = now; participant.LastReadMessageId = through.ID;
         await db.SaveChangesAsync(ct);
+        await notifications.MarkRelatedReadAsync(currentUser.UserId, NotificationType.DirectMessage, request.ConversationId, ct);
         var ids = await db.ConversationParticipants.Where(item => item.ConversationId == request.ConversationId).Select(item => item.UserId).ToListAsync(ct);
         await realtime.ConversationReadAsync(request.ConversationId, currentUser.UserId, through.ID, now, ids, ct);
     }
@@ -183,7 +219,7 @@ public sealed class GetUserConversationsHandler(AppDbContext db, ICurrentUser cu
     public async Task<IReadOnlyList<ConversationItem>> Handle(GetUserConversationsQuery request, CancellationToken ct)
     {
         await ChatSupport.EnsureProjectChannels(db, currentUser.UserId, ct);
-        return await ConversationProjection.Query(db, currentUser.UserId).OrderByDescending(item => item.UpdatedAt).ToListAsync(ct);
+        return await ConversationProjection.LoadAllAsync(db, currentUser.UserId, ct);
     }
 }
 
@@ -212,17 +248,87 @@ public sealed class GetUnreadConversationCountsHandler(AppDbContext db, ICurrent
 
 internal static class ConversationProjection
 {
-    public static IQueryable<ConversationItem> Query(AppDbContext db, Guid userId) =>
-        db.ConversationParticipants.AsNoTracking().Where(participant => participant.UserId == userId).Select(participant => new ConversationItem(
-            participant.ConversationId,
-            participant.Conversation.Type.ToString(),
-            participant.Conversation.ProjectId,
-            participant.Conversation.Type == ConversationType.ProjectChannel ? participant.Conversation.Name! : participant.Conversation.Participants.Where(other => other.UserId != userId).Select(other => other.User.FirstName + " " + other.User.LastName).FirstOrDefault()!,
-            participant.Conversation.Participants.Select(other => new ChatUser(other.UserId, other.User.UserName, other.User.FirstName + " " + other.User.LastName, other.User.AvatarUrl)).ToList(),
-            participant.Conversation.ChatMessages.OrderByDescending(message => message.CreatedAt).Select(message => new ChatMessageItem(message.ID, message.ConversationId, new ChatUser(message.SenderId, message.Sender.UserName, message.Sender.FirstName + " " + message.Sender.LastName, message.Sender.AvatarUrl), message.IsDeleted ? "Message deleted" : message.Content, message.CreatedAt, message.IsDeleted, message.ReadReceipts.Select(receipt => receipt.UserId).ToList())).FirstOrDefault(),
-            participant.Conversation.ChatMessages.Count(message => message.SenderId != userId && !message.ReadReceipts.Any(receipt => receipt.UserId == userId)),
-            participant.Conversation.UpdatedAt));
+    public static async Task<IReadOnlyList<ConversationItem>> LoadAllAsync(
+        AppDbContext db, Guid userId, CancellationToken ct)
+    {
+        var conversations = await db.ConversationParticipants.AsNoTracking()
+            .Where(participant => participant.UserId == userId)
+            .Select(participant => new
+            {
+                participant.ConversationId,
+                participant.Conversation.Type,
+                participant.Conversation.ProjectId,
+                participant.Conversation.Name,
+                participant.Conversation.UpdatedAt
+            })
+            .OrderByDescending(item => item.UpdatedAt)
+            .ToListAsync(ct);
 
-    public static Task<ConversationItem?> LoadAsync(AppDbContext db, Guid userId, Guid conversationId, CancellationToken ct) =>
-        Query(db, userId).SingleOrDefaultAsync(item => item.Id == conversationId, ct);
+        var items = new List<ConversationItem>(conversations.Count);
+        foreach (var conversation in conversations)
+            items.Add(await BuildAsync(db, userId, conversation.ConversationId, conversation.Type,
+                conversation.ProjectId, conversation.Name, conversation.UpdatedAt, ct));
+        return items;
+    }
+
+    public static async Task<ConversationItem?> LoadAsync(
+        AppDbContext db, Guid userId, Guid conversationId, CancellationToken ct)
+    {
+        var conversation = await db.ConversationParticipants.AsNoTracking()
+            .Where(participant => participant.UserId == userId && participant.ConversationId == conversationId)
+            .Select(participant => new
+            {
+                participant.ConversationId,
+                participant.Conversation.Type,
+                participant.Conversation.ProjectId,
+                participant.Conversation.Name,
+                participant.Conversation.UpdatedAt
+            })
+            .SingleOrDefaultAsync(ct);
+        return conversation is null
+            ? null
+            : await BuildAsync(db, userId, conversation.ConversationId, conversation.Type,
+                conversation.ProjectId, conversation.Name, conversation.UpdatedAt, ct);
+    }
+
+    private static async Task<ConversationItem> BuildAsync(
+        AppDbContext db,
+        Guid userId,
+        Guid conversationId,
+        ConversationType type,
+        Guid? projectId,
+        string? channelName,
+        DateTime updatedAt,
+        CancellationToken ct)
+    {
+        var participants = await db.ConversationParticipants.AsNoTracking()
+            .Where(participant => participant.ConversationId == conversationId)
+            .OrderBy(participant => participant.JoinedAt)
+            .Select(participant => new ChatUser(
+                participant.UserId,
+                participant.User.UserName,
+                participant.User.FirstName + " " + participant.User.LastName,
+                participant.User.AvatarUrl))
+            .ToListAsync(ct);
+
+        var lastMessage = await ChatSupport.ProjectMessages(db.ChatMessages.AsNoTracking()
+                .Where(message => message.ConversationId == conversationId)
+                .OrderByDescending(message => message.CreatedAt)
+                .ThenByDescending(message => message.ID))
+            .FirstOrDefaultAsync(ct);
+
+        var unreadCount = await db.ChatMessages.AsNoTracking()
+            .Where(message => message.ConversationId == conversationId &&
+                message.SenderId != userId &&
+                !message.ReadReceipts.Any(receipt => receipt.UserId == userId))
+            .CountAsync(ct);
+
+        var name = type == ConversationType.ProjectChannel
+            ? channelName ?? "Project channel"
+            : participants.FirstOrDefault(participant => participant.Id != userId)?.DisplayName
+                ?? "Direct conversation";
+
+        return new ConversationItem(conversationId, type.ToString(), projectId, name,
+            participants, lastMessage, unreadCount, updatedAt);
+    }
 }

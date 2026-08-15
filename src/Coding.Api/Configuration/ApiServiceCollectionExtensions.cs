@@ -134,6 +134,18 @@ public static class ApiServiceCollectionExtensions
                         QueueLimit = 0,
                         AutoReplenishment = true
                     }));
+            options.AddPolicy("user-search", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.User.FindFirst("sub")?.Value
+                    ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                    ?? "anonymous",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 30,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true
+                    }));
             options.AddPolicy("realtime", httpContext =>
                 RateLimitPartition.GetConcurrencyLimiter(
                     httpContext.User.Identity?.Name
@@ -203,7 +215,17 @@ public static class ApiServiceCollectionExtensions
                 };
             });
 
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            var verifiedUserPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                    string.Equals(context.User.FindFirst("email_verified")?.Value, "true", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(context.User.FindFirst("demo")?.Value, "true", StringComparison.OrdinalIgnoreCase))
+                .Build();
+            options.DefaultPolicy = verifiedUserPolicy;
+            options.FallbackPolicy = verifiedUserPolicy;
+        });
         return services;
     }
 

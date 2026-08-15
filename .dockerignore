@@ -12,6 +12,10 @@
 **/.env
 **/.env.*
 !**/.env.example
+showcase
+docs
+tests
+.github
 **/*.user
 **/*.suo
 backups

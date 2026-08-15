@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "../components/FormField";
 import { useAuth } from "../hooks/useAuth";
+import { authService } from "../services/authService";
 
 const registerSchema = z.object({
   firstName: z.string().trim().min(2, "Use at least 2 characters.").max(50),
@@ -22,8 +23,9 @@ type RegisterValues = z.infer<typeof registerSchema>;
 
 export function RegisterPage() {
   const { register: createAccount, session, isInitializing } = useAuth();
-  const navigate = useNavigate();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [registeredEmail, setRegisteredEmail] = useState<string>();
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: { firstName: "", lastName: "", userName: "", email: "", password: "", confirmPassword: "" },
@@ -33,13 +35,40 @@ export function RegisterPage() {
     setServerError(null);
     try {
       await createAccount(values);
-      navigate("/dashboard", { replace: true });
+      setRegisteredEmail(values.email);
     } catch (error) {
       setServerError(error instanceof Error ? error.message : "Registration failed. Please try again.");
     }
   });
 
-  if (!isInitializing && session) return <Navigate to="/dashboard" replace />;
+  const pendingEmail = registeredEmail ?? (!session?.user.isDemo && !session?.user.isEmailVerified ? session?.user.email : undefined);
+
+  if (!isInitializing && session?.user.isEmailVerified) return <Navigate to="/dashboard" replace />;
+
+  if (pendingEmail) {
+    const resend = async () => {
+      setResendState("sending");
+      try {
+        await authService.requestEmailVerification(pendingEmail);
+        setResendState("sent");
+      } catch {
+        setResendState("error");
+      }
+    };
+    return <section className="verification-pending">
+      <div className="verification-icon" aria-hidden="true">✉</div>
+      <header className="form-heading">
+        <p className="eyebrow">One last step</p>
+        <h2>Check your inbox</h2>
+        <p>We sent a secure verification link to <strong>{pendingEmail}</strong>. Confirm your email before entering the workspace.</p>
+      </header>
+      <div className="verification-note"><span aria-hidden="true">i</span><p>The link expires in one hour. Check your spam or junk folder if it does not arrive within a minute.</p></div>
+      {resendState === "sent" && <p className="verification-status success" role="status">A fresh verification email was sent.</p>}
+      {resendState === "error" && <p className="verification-status error" role="alert">We could not resend the email. Please try again.</p>}
+      <button className="primary-button" type="button" disabled={resendState === "sending"} onClick={() => void resend()}>{resendState === "sending" ? "Sending…" : "Resend verification email"}</button>
+      <Link className="verification-signin" to="/login">Use a different account</Link>
+    </section>;
+  }
 
   return (
     <>

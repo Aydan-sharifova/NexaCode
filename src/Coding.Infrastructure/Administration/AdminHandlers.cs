@@ -95,10 +95,34 @@ public sealed class DeleteAdminUserHandler(AppDbContext db, ICurrentUser current
             var superAdminCount = await db.UserRoles.CountAsync(x => x.Role.Name == SystemRoles.SuperAdmin && !x.User.IsDeleted, ct);
             if (superAdminCount <= 1) throw new InvalidOperationException("The last SuperAdmin cannot be deleted.");
         }
-        user.IsDeleted = true; user.DeletedAt = DateTime.UtcNow; user.IsSuspended = true; user.SuspendedAt = DateTime.UtcNow; user.SuspensionReason = r.Reason.Trim();
+        var deletedAt = DateTime.UtcNow;
+        var deletedIdentity = user.ID.ToString("N");
+        user.IsDeleted = true;
+        user.DeletedAt = deletedAt;
+        user.IsSuspended = true;
+        user.SuspendedAt = deletedAt;
+        user.SuspensionReason = r.Reason.Trim();
+        user.UpdatedAt = deletedAt;
+        user.FirstName = "Deleted";
+        user.LastName = "User";
+        user.UserName = $"deleted-{deletedIdentity}";
+        user.Email = $"deleted-{deletedIdentity}@invalid.local";
+        user.PasswordHash = string.Empty;
+        user.AvatarUrl = null;
+        user.Bio = null;
+        user.EmailVerifiedAt = null;
+        await db.Conversations
+            .Where(conversation =>
+                conversation.Type == Coding.Enums.ConversationType.Direct &&
+                conversation.Participants.Any(participant => participant.UserId == user.ID))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(conversation => conversation.IsDeleted, true)
+                .SetProperty(conversation => conversation.DeletedAt, deletedAt)
+                .SetProperty(conversation => conversation.UpdateAt, deletedAt)
+                .SetProperty(conversation => conversation.UpdatedAt, deletedAt), ct);
         await db.RefreshTokens.Where(x => x.UserId == user.ID && !x.IsRevoked).ExecuteUpdateAsync(x => x.SetProperty(t => t.IsRevoked, true), ct);
         await db.SaveChangesAsync(ct);
-        await audit.LogAsync(new(current.UserId, null, "AdminUserDeleted", nameof(User), user.ID, "SuperAdmin soft-deleted a user account.", new Dictionary<string, object?> { ["reason"] = r.Reason }), ct);
+        await audit.LogAsync(new(current.UserId, null, "AdminUserDeleted", nameof(User), user.ID, "SuperAdmin soft-deleted and anonymized a user account.", new Dictionary<string, object?> { ["reason"] = r.Reason }), ct);
     }
 }
 public sealed class GetAdminProjectsHandler(AppDbContext db) : IRequestHandler<GetAdminProjectsQuery, PageResult<AdminProjectItem>>

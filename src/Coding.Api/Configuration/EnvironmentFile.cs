@@ -23,6 +23,19 @@ internal static class EnvironmentFile
 
             Environment.SetEnvironmentVariable(key, value);
         }
+
+        MapAlias("JWT_ISSUER", "Jwt__Issuer");
+        MapAlias("JWT_AUDIENCE", "Jwt__Audience");
+        MapAlias("JWT_KEY", "Jwt__Key");
+    }
+
+    private static void MapAlias(string source, string destination)
+    {
+        if (Environment.GetEnvironmentVariable(destination) is not null) return;
+
+        var value = Environment.GetEnvironmentVariable(source);
+        if (!string.IsNullOrWhiteSpace(value))
+            Environment.SetEnvironmentVariable(destination, value);
     }
 
     private static string? Find(string startDirectory)

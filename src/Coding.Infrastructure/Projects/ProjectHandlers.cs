@@ -10,6 +10,10 @@ using MediatR;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Coding.Application.Features.Notifications;
+using Coding.Infrastructure.Authentication;
+using Coding.Services.Interfaces;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Coding.Infrastructure.Projects;
 
@@ -79,7 +83,13 @@ public sealed class DeleteProjectHandler(AppDbContext context, ICurrentUser curr
     }
 }
 
-public sealed class InviteProjectMemberHandler(AppDbContext context, ICurrentUser currentUser, INotificationService notifications) : IRequestHandler<InviteProjectMemberCommand, CreatedInvitation>
+public sealed class InviteProjectMemberHandler(
+    AppDbContext context,
+    ICurrentUser currentUser,
+    INotificationService notifications,
+    IEmailSender emailSender,
+    IOptions<SmtpSettings> smtpOptions,
+    ILogger<InviteProjectMemberHandler> logger) : IRequestHandler<InviteProjectMemberCommand, CreatedInvitation>
 {
     public async Task<CreatedInvitation> Handle(InviteProjectMemberCommand request, CancellationToken cancellationToken)
     {
@@ -97,10 +107,29 @@ public sealed class InviteProjectMemberHandler(AppDbContext context, ICurrentUse
         var invitation = new ProjectInvitation { ID = Guid.NewGuid(), ProjectId = request.ProjectId, Email = email, Role = request.Role, TokenHash = ProjectAccess.HashToken(token), Status = InvitationStatus.Pending, ExpiresAt = DateTime.UtcNow.AddDays(7), InvitedById = currentUser.UserId };
         context.ProjectInvitations.Add(invitation);
         await context.SaveChangesAsync(cancellationToken);
+        var projectDetails = await context.Projects.Where(project => project.ID == request.ProjectId)
+            .Select(project => new
+            {
+                project.Name,
+                InviterName = project.Members.Where(member => member.UserId == currentUser.UserId)
+                    .Select(member => member.User.FirstName + " " + member.User.LastName)
+                    .Single()
+            })
+            .SingleAsync(cancellationToken);
         if (existingUserId.HasValue && existingUserId.Value != currentUser.UserId)
         {
-            var projectName = await context.Projects.Where(project => project.ID == request.ProjectId).Select(project => project.Name).SingleAsync(cancellationToken);
-            await notifications.CreateAsync(new CreateNotificationRequest(existingUserId.Value, NotificationType.Invitation, "Project invitation", $"You were invited to {projectName}.", invitation.ID, nameof(ProjectInvitation)), cancellationToken);
+            await notifications.CreateAsync(new CreateNotificationRequest(existingUserId.Value, NotificationType.Invitation, "Project invitation", $"You were invited to {projectDetails.Name}.", invitation.ID, nameof(ProjectInvitation)), cancellationToken);
+        }
+        try
+        {
+            var link = $"{smtpOptions.Value.ClientBaseUrl.TrimEnd('/')}/invitations/{Uri.EscapeDataString(token)}";
+            await emailSender.SendAsync(email, $"Invitation to {projectDetails.Name}",
+                AccountEmailTemplates.ProjectInvitation(projectDetails.InviterName.Trim(), projectDetails.Name,
+                    request.Role.ToString(), invitation.ExpiresAt, link), cancellationToken);
+        }
+        catch (Exception error) when (error is EmailDeliveryException && error is not OperationCanceledException)
+        {
+            logger.LogError(error, "Project invitation {InvitationId} was saved, but its email was not delivered.", invitation.ID);
         }
         return new(invitation.ID, token, invitation.ExpiresAt);
     }

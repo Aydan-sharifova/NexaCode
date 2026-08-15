@@ -18,7 +18,7 @@ public sealed class GetUserSettingsHandler(AppDbContext db, ICurrentUser current
         var user = await db.Users.AsNoTracking().SingleAsync(x => x.ID == current.UserId, ct);
         var preference = await db.UserPreferences.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == current.UserId, ct);
         var notifications = await db.UserNotificationPreferences.AsNoTracking().Where(x => x.UserId == current.UserId).ToListAsync(ct);
-        return new(new(user.ID, user.FirstName, user.LastName, user.UserName, user.Email, user.Bio, user.AvatarUrl),
+        return new(new(user.ID, user.PublicId, user.FirstName, user.LastName, user.UserName, user.Email, user.Bio, user.AvatarUrl),
             new(preference?.Theme ?? "system", preference?.Language ?? "en", preference?.ReducedMotion ?? false, preference?.CompactMode ?? false, preference?.SecurityAlertsEnabled ?? true),
             Enum.GetValues<NotificationType>().Select(type => { var item = notifications.FirstOrDefault(x => x.Type == type); return new NotificationPreferenceDto(type.ToString(), item?.InAppEnabled ?? true, item?.EmailEnabled ?? false); }).ToList());
     }
@@ -29,7 +29,7 @@ public sealed class UpdateProfileHandler(AppDbContext db, ICurrentUser current, 
     {
         var user = await db.Users.SingleAsync(x => x.ID == current.UserId, ct); user.FirstName = r.FirstName.Trim(); user.LastName = r.LastName.Trim(); user.Bio = r.Bio?.Trim(); user.UpdatedAt = DateTime.UtcNow; await db.SaveChangesAsync(ct);
         await audit.LogAsync(new(current.UserId, null, "ProfileUpdated", nameof(User), user.ID, "User updated profile settings."), ct);
-        return new(user.ID, user.FirstName, user.LastName, user.UserName, user.Email, user.Bio, user.AvatarUrl);
+        return new(user.ID, user.PublicId, user.FirstName, user.LastName, user.UserName, user.Email, user.Bio, user.AvatarUrl);
     }
 }
 public sealed class UpdatePreferencesHandler(AppDbContext db, ICurrentUser current) : IRequestHandler<UpdatePreferencesCommand, UserPreferenceDto>

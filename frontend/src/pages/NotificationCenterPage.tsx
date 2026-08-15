@@ -26,6 +26,15 @@ export function NotificationCenterPage() {
   const items = query.data?.pages.flatMap((page) => page.items) ?? store.items;
   const unreadCount = items.filter((item) => !item.isRead).length;
 
+  const openDirectMessage = async (notificationId: string, conversationId: string) => {
+    try {
+      await notificationApi.read(notificationId);
+      store.read(notificationId);
+    } finally {
+      navigate(`/chat?conversation=${conversationId}`);
+    }
+  };
+
   const markAllRead = async () => {
     await notificationApi.readAll();
     store.read();
@@ -90,6 +99,9 @@ export function NotificationCenterPage() {
                 {item.type === "Invitation" && item.relatedEntityId && <div className="invitation-actions">
                   <button disabled={responding === item.relatedEntityId} onClick={() => void respondToInvitation(item.id, item.relatedEntityId!, false)}>Reject</button>
                   <button className="accept" disabled={responding === item.relatedEntityId} onClick={() => void respondToInvitation(item.id, item.relatedEntityId!, true)}>{responding === item.relatedEntityId ? "Responding…" : "Accept invitation"}</button>
+                </div>}
+                {item.type === "DirectMessage" && item.relatedEntityId && <div className="invitation-actions">
+                  <button className="accept" onClick={() => void openDirectMessage(item.id, item.relatedEntityId!)}>Open conversation</button>
                 </div>}
               </div>
               {!item.isRead && (

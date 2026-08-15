@@ -1489,7 +1489,7 @@ namespace Coding.Migrations
 
                     b.HasKey("ID");
 
-                    b.HasIndex("OwnerId");
+                    b.HasIndex("OwnerId", "IsPublic");
 
                     b.HasIndex("WorkspaceId");
 
@@ -1892,6 +1892,11 @@ namespace Coding.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("PublicId")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
                     b.Property<DateTime?>("SuspendedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1913,6 +1918,9 @@ namespace Coding.Migrations
                     b.HasKey("ID");
 
                     b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("PublicId")
                         .IsUnique();
 
                     b.HasIndex("UserName")

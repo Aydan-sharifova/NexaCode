@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Coding.Data;
+using Coding.Application.Features.Users;
 using Coding.Enums;
 using Coding.Infrastructure.Authentication;
 using Coding.Models;
@@ -13,6 +14,7 @@ namespace Coding.Infrastructure.Demo;
 public sealed class DemoDataSeeder(
     AppDbContext db,
     IdentityPasswordService passwords,
+    IPublicUserIdGenerator publicUserIdGenerator,
     ILogger<DemoDataSeeder> logger)
 {
     public async Task SeedAsync(CancellationToken cancellationToken = default)
@@ -389,6 +391,7 @@ public sealed class DemoDataSeeder(
             ID = id,
             Email = email,
             UserName = userName,
+            PublicId = await publicUserIdGenerator.GenerateAsync(cancellationToken),
             FirstName = firstName,
             LastName = lastName,
             PasswordHash = string.Empty,

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Coding.Enums;
+using Coding.Application.Features.Users;
 using Coding.Infrastructure.Authentication;
 using Coding.Models;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ namespace Coding.Data;
 public sealed class DevelopmentDataSeeder(
     AppDbContext db,
     IdentityPasswordService passwords,
+    IPublicUserIdGenerator publicUserIdGenerator,
     IConfiguration configuration)
 {
     public async Task SeedAsync(CancellationToken cancellationToken)
@@ -116,6 +118,7 @@ public sealed class DevelopmentDataSeeder(
             ID = Guid.NewGuid(),
             Email = normalizedEmail,
             UserName = userName,
+            PublicId = await publicUserIdGenerator.GenerateAsync(cancellationToken),
             FirstName = firstName,
             LastName = lastName,
             PasswordHash = string.Empty,

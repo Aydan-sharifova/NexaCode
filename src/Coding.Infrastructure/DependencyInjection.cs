@@ -21,6 +21,8 @@ using Coding.Application.Features.Demo;
 using Coding.Infrastructure.Demo;
 using Coding.Application.Features.Collaboration;
 using Coding.Infrastructure.Collaboration;
+using Coding.Application.Features.Users;
+using Coding.Infrastructure.Users;
 
 namespace Coding.Infrastructure;
 
@@ -52,24 +54,19 @@ public static class DependencyInjection
         services.AddSingleton<CollaborativeContentMaterializer>();
         services.AddSingleton<ICollaborativeContentMaterializer>(provider => provider.GetRequiredService<CollaborativeContentMaterializer>());
         services.AddHostedService(provider => provider.GetRequiredService<CollaborativeContentMaterializer>());
-
         services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<IUserLookupService, UserLookupService>();
+        services.AddScoped<IPublicUserIdGenerator, PublicUserIdGenerator>();
         services.AddSingleton<ICacheService, MemoryCacheService>();
         services.AddScoped<IRoleService, RoleService>();
-        services.AddOptions<SmtpOptions>().Bind(configuration.GetSection(SmtpOptions.SectionName))
-            .Validate(x => !x.Enabled || (
-                !string.IsNullOrWhiteSpace(x.Host) &&
-                x.Port is > 0 and <= 65535 &&
-                !string.IsNullOrWhiteSpace(x.Username) &&
-                !string.IsNullOrWhiteSpace(x.Password) &&
-                !string.IsNullOrWhiteSpace(x.FromEmail) &&
-                Uri.TryCreate(x.ClientBaseUrl, UriKind.Absolute, out _)),
-                "Enabled SMTP requires a host, valid port, username, password, from address, and absolute client base URL.")
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<SmtpSettings>, SmtpSettingsValidator>();
+        services.AddOptions<SmtpSettings>()
+            .Bind(configuration.GetSection(SmtpSettings.SectionName))
             .ValidateOnStart();
         services.AddScoped<LoggingEmailSender>();
         services.AddScoped<SmtpEmailSender>();
         services.AddScoped<IEmailSender>(provider =>
-            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SmtpOptions>>().Value.Enabled
+            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SmtpSettings>>().Value.Enabled
                 ? provider.GetRequiredService<SmtpEmailSender>()
                 : provider.GetRequiredService<LoggingEmailSender>());
         services.AddScoped<IdentityPasswordService>();

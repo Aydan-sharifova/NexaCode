@@ -13,6 +13,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Coding.Application.Features.Activities;
 using Coding.Application.Features.Demo;
+using Coding.Application.Features.Users;
 
 namespace Coding.Infrastructure.Authentication;
 
@@ -23,7 +24,8 @@ public sealed class AuthenticationService(
     IdentityPasswordService passwordService,
     IActivityLogger activityLogger,
     IHttpContextAccessor httpContextAccessor,
-    IDemoEnvironmentService demoEnvironment) : IAuthenticationService
+    IDemoEnvironmentService demoEnvironment,
+    IPublicUserIdGenerator publicUserIdGenerator) : IAuthenticationService
 {
     private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(30);
     private static readonly TimeSpan AccountTokenLifetime = TimeSpan.FromHours(1);
@@ -47,11 +49,13 @@ public sealed class AuthenticationService(
             cancellationToken);
 
         var now = DateTime.UtcNow;
+        var publicId = await publicUserIdGenerator.GenerateAsync(cancellationToken);
         var user = new User
         {
             FirstName = request.FirstName.Trim(),
             LastName = request.LastName.Trim(),
             UserName = userName,
+            PublicId = publicId,
             Email = email,
             PasswordHash = string.Empty,
             CreatedAt = now,
@@ -117,6 +121,8 @@ public sealed class AuthenticationService(
             throw new UnauthorizedException("Invalid email or password.");
         if (user.IsSuspended)
             throw new UnauthorizedException("This account has been suspended. Contact support.");
+        if (!user.EmailVerifiedAt.HasValue)
+            throw new UnauthorizedException("Verify your email address before signing in.");
 
         user.LastSeen = DateTime.UtcNow;
         var roles = user.UserRoles.Select(item => item.Role.Name).Distinct().ToArray();
@@ -301,8 +307,9 @@ public sealed class AuthenticationService(
             new(JwtRegisteredClaimNames.Sub, user.ID.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email),
             new(JwtRegisteredClaimNames.UniqueName, user.UserName),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            ,new("sid", sessionId.ToString())
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("sid", sessionId.ToString()),
+            new("email_verified", user.EmailVerifiedAt.HasValue ? "true" : "false")
         };
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
         if (demoRole.HasValue)

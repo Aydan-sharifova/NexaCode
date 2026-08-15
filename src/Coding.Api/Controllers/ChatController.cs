@@ -24,6 +24,6 @@ public sealed class ChatController(ISender sender) : ControllerBase
     public Task<IReadOnlyList<UnreadConversationCount>> Unread(CancellationToken ct) => sender.Send(new GetUnreadConversationCountsQuery(), ct);
 }
 
-public sealed record CreateDirectConversationRequest(Guid OtherUserId);
+public sealed record CreateDirectConversationRequest(string OtherUserId);
 public sealed record SendChatMessageRequest(string Content);
 public sealed record MarkConversationReadRequest(Guid? ThroughMessageId);

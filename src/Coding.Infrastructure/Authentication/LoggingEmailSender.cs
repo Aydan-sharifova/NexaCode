@@ -12,14 +12,22 @@ public sealed class LoggingEmailSender : IEmailSender
         this.logger = logger;
     }
 
+    public Task SendAsync(
+        string to,
+        string subject,
+        string htmlBody,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogWarning("Email delivery provider is disabled; an email was not delivered.");
+        return Task.CompletedTask;
+    }
+
     public Task SendEmailVerificationAsync(
         string email,
         string token,
         CancellationToken cancellationToken)
     {
-        logger.LogWarning(
-            "Email delivery provider is not configured. Verification email for {Email} was not delivered.",
-            email);
+        logger.LogWarning("Email delivery provider is disabled; a verification email was not delivered.");
         return Task.CompletedTask;
     }
 
@@ -28,9 +36,7 @@ public sealed class LoggingEmailSender : IEmailSender
         string token,
         CancellationToken cancellationToken)
     {
-        logger.LogWarning(
-            "Email delivery provider is not configured. Password reset email for {Email} was not delivered.",
-            email);
+        logger.LogWarning("Email delivery provider is disabled; a password reset email was not delivered.");
         return Task.CompletedTask;
     }
 }

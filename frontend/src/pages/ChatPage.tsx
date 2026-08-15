@@ -8,38 +8,54 @@ import { usePageTranslation } from "../hooks/usePageTranslation";
 import { Dialog } from "../components/ui/Dialog";
 import { AiAssistantPanel } from "../features/ai/AiAssistantPanel";
 import { useToast } from "../contexts/ToastContext";
-
-const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { isValidPublicUserId, normalizePublicUserId } from "../features/users/publicUserId";
+import { conversationsQueryKey, upsertConversation } from "../features/chat/conversationCache";
+import { useSearchParams } from "react-router-dom";
 
 export function ChatPage() {
   const { pt } = usePageTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const client = useQueryClient(); const { session } = useAuth(); const { show } = useToast(); const [active, setActive] = useState<string>(); const [content, setContent] = useState(""); const [otherUserId, setOtherUserId] = useState(""); const [typingIds, setTypingIds] = useState<string[]>([]); const [aiOpen, setAiOpen] = useState(false); const typingTimer = useRef<number | undefined>(undefined);
-  const conversations = useQuery({ queryKey: ["chat-conversations"], queryFn: chatApi.conversations });
-  useEffect(() => { if (!active && conversations.data?.[0]) setActive(conversations.data[0].id); }, [active, conversations.data]);
+  const conversations = useQuery({ queryKey: conversationsQueryKey, queryFn: chatApi.conversations, refetchInterval: 15_000 });
+  useEffect(() => {
+    if (!conversations.data?.length) return;
+    const requested = searchParams.get("conversation");
+    const requestedConversation = conversations.data.find((item) => item.id === requested);
+    if (active && !requestedConversation) return;
+    const selected = requestedConversation ?? conversations.data[0];
+    setActive(selected.id);
+    if (requestedConversation) setSearchParams({}, { replace: true });
+  }, [active, conversations.data, searchParams, setSearchParams]);
   const messages = useInfiniteQuery({ queryKey: ["chat-messages", active], enabled: Boolean(active), queryFn: ({ pageParam }) => chatApi.messages(active!, pageParam), initialPageParam: undefined as string | undefined, getNextPageParam: (page) => page.nextCursor });
   useEffect(() => { if (!active) return; void signalRService.joinConversation(active); const offMessage = signalRService.onMessage((message) => { if (message.conversationId === active) void messages.refetch(); void conversations.refetch(); }); const offUpdated = signalRService.onConversationUpdated(() => void conversations.refetch()); const offTyping = signalRService.onChatTyping((event) => { if (event.conversationId === active) setTypingIds((ids) => event.typing ? [...new Set([...ids, event.userId])] : ids.filter((id) => id !== event.userId)); }); return () => { offMessage(); offUpdated(); offTyping(); void signalRService.leaveConversation(active); }; }, [active]);
-  const send = useMutation({ mutationFn: () => chatApi.send(active!, content), onSuccess: async () => { setContent(""); signalRService.stopChatTyping(active!); await messages.refetch(); await conversations.refetch(); } });
+  const send = useMutation({
+    mutationFn: () => chatApi.send(active!, content),
+    onSuccess: () => {
+      setContent("");
+      signalRService.stopChatTyping(active!);
+      void messages.refetch();
+      void conversations.refetch();
+    },
+    onError: (error) => show(error instanceof Error ? error.message : "Unable to send the message.", "error"),
+  });
   const createDirect = useMutation({
     mutationFn: (userId: string) => chatApi.direct(userId),
-    onSuccess: async (conversation) => {
+    onSuccess: (conversation) => {
       setOtherUserId("");
-      await client.invalidateQueries({ queryKey: ["chat-conversations"] });
+      client.setQueryData<Conversation[]>(conversationsQueryKey, (current) =>
+        upsertConversation(current, conversation));
       setActive(conversation.id);
+      void client.invalidateQueries({ queryKey: conversationsQueryKey });
       show("Direct conversation opened.");
     },
     onError: (error) => show(error instanceof Error ? error.message : "Unable to start the conversation.", "error"),
   });
   const startDirect = () => {
-    const userId = otherUserId.trim();
-    if (!userIdPattern.test(userId)) {
+    if (!isValidPublicUserId(otherUserId)) {
       show("Paste the complete user ID from the other user's profile.", "error");
       return;
     }
-    if (session?.user.id && userId.toLowerCase() === session.user.id.toLowerCase()) {
-      show("That is your own user ID. Ask the other user to share the ID shown in their profile.", "error");
-      return;
-    }
-    createDirect.mutate(userId);
+    createDirect.mutate(normalizePublicUserId(otherUserId));
   };
   const orderedMessages = useMemo(
     () => [...(messages.data?.pages.flatMap((page) => page.items) ?? [])].reverse(),
@@ -47,6 +63,10 @@ export function ChatPage() {
   );
   const selected = conversations.data?.find((item) => item.id === active);
   const unreadCount = conversations.data?.reduce((sum, item) => sum + item.unreadCount, 0) ?? 0;
+  useEffect(() => {
+    if (!selected?.lastMessage || selected.unreadCount === 0) return;
+    void chatApi.read(selected.id, selected.lastMessage.id).then(() => conversations.refetch());
+  }, [selected?.id, selected?.lastMessage?.id, selected?.unreadCount]);
 
   return (
     <main className="chat-page">
@@ -98,10 +118,18 @@ export function ChatPage() {
             />
           ))}
           {!conversations.isPending && !conversations.data?.length && (
-            <div className="chat-list-empty">
-              <span aria-hidden="true">•••</span>
-              <p>{pt("noConversations")}</p>
-            </div>
+            conversations.isError ? (
+              <div className="chat-list-empty" role="alert">
+                <span aria-hidden="true">!</span>
+                <p>Conversations could not be loaded.</p>
+                <button type="button" onClick={() => void conversations.refetch()}>Try again</button>
+              </div>
+            ) : (
+              <div className="chat-list-empty">
+                <span aria-hidden="true">•••</span>
+                <p>{pt("noConversations")}</p>
+              </div>
+            )
           )}
         </nav>
       </aside>
@@ -122,6 +150,12 @@ export function ChatPage() {
               )}
             </header>
             <div className="chat-messages">
+              {messages.isError && (
+                <div className="chat-list-empty" role="alert">
+                  <p>Messages could not be loaded.</p>
+                  <button type="button" onClick={() => void messages.refetch()}>Try again</button>
+                </div>
+              )}
               {messages.hasNextPage && <button className="older-messages" onClick={() => messages.fetchNextPage()}>{pt("olderMessages")}</button>}
               {orderedMessages.map((message) => (
                 <article key={message.id} className={message.sender.id === session?.user.id ? "mine" : ""}>
@@ -148,7 +182,7 @@ export function ChatPage() {
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
-                    if (content.trim()) send.mutate();
+                    if (content.trim() && !send.isPending) send.mutate();
                   }
                 }}
                 placeholder={`${pt("send")}: ${selected.name}`}

@@ -144,7 +144,7 @@ Configuration uses normal ASP.NET Core precedence; environment variables overrid
 | `FRONTEND_ORIGIN` | Yes | Exact allowed browser origin |
 | `ALLOWED_HOSTS` | Yes | Semicolon-separated public host names accepted by ASP.NET Core |
 | `SMTP_ENABLED` | No | Enables real email delivery |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` | When SMTP enabled | SMTP transport |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USE_SSL`, `SMTP_USE_STARTTLS`, `SMTP_USERNAME`, `SMTP_PASSWORD` | When SMTP enabled | SMTP transport; Gmail port 587 uses STARTTLS and a Google App Password |
 | `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME` | When SMTP enabled | Sender identity |
 | `AI_PROVIDER` | No | Selects `OpenAI` in production; local development uses Ollama |
 | `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_MODEL` | No | Ollama/vLLM endpoint and model |
@@ -153,6 +153,8 @@ Configuration uses normal ASP.NET Core precedence; environment variables overrid
 | `API_IMAGE`, `FRONTEND_IMAGE` | No | Prebuilt image names |
 
 For direct API execution, replace `_` names with ASP.NET paths where shown in JSON, for example `OpenAI__ApiKey`, `Cors__AllowedOrigins__0`, and `ConnectionStrings__Default`. See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
+
+Local SMTP credentials belong in .NET User Secrets; production credentials belong in the deployment secret manager. Setup, test-endpoint, Gmail, and troubleshooting instructions are in [docs/SMTP_SETUP.md](docs/SMTP_SETUP.md), with the implementation inventory in [docs/SMTP_INTEGRATION_AUDIT.md](docs/SMTP_INTEGRATION_AUDIT.md).
 
 ## Database migrations
 

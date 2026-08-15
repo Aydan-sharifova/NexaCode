@@ -14,6 +14,7 @@ public interface INotificationService
 {
     Task<NotificationItem?> CreateAsync(CreateNotificationRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<NotificationItem>> CreateManyAsync(IEnumerable<CreateNotificationRequest> requests, CancellationToken cancellationToken = default);
+    Task MarkRelatedReadAsync(Guid userId, NotificationType type, Guid relatedEntityId, CancellationToken cancellationToken = default);
 }
 
 public interface INotificationRealtimePublisher

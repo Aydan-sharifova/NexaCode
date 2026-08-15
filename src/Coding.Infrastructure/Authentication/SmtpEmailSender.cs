@@ -1,4 +1,3 @@
-using System.Net;
 using Coding.Services.Interfaces;
 using Coding.Exceptions;
 using MailKit.Net.Smtp;
@@ -6,36 +5,57 @@ using MailKit.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
+using System.Net;
+using System.Text.RegularExpressions;
 
 namespace Coding.Infrastructure.Authentication;
 
-public sealed class SmtpEmailSender(IOptions<SmtpOptions> options, ILogger<SmtpEmailSender> logger) : IEmailSender
+public sealed class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<SmtpEmailSender> logger) : IEmailSender
 {
-    public Task SendEmailVerificationAsync(string email, string token, CancellationToken ct) =>
-        SendAsync(email, "Verify your Coding email", "Verify email", "Confirm your email address to activate all workspace features.", $"/verify-email?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}", ct);
-
-    public Task SendPasswordResetAsync(string email, string token, CancellationToken ct) =>
-        SendAsync(email, "Reset your Coding password", "Reset password", "Use this secure link to choose a new password. If you did not request this, ignore the message.", $"/reset-password?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}", ct);
-
-    private async Task SendAsync(string recipient, string subject, string heading, string description, string path, CancellationToken ct)
+    public Task SendEmailVerificationAsync(string email, string token, CancellationToken ct)
     {
-        var settings = options.Value; var link = $"{settings.ClientBaseUrl.TrimEnd('/')}{path}";
-        var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(settings.FromName, settings.FromEmail));
-        message.To.Add(MailboxAddress.Parse(recipient));
-        message.Subject = subject;
-        message.Body = new BodyBuilder { HtmlBody = Template(heading, description, link) }.ToMessageBody();
+        var link = BuildClientLink("/verify-email", email, token);
+        return SendAsync(email, "Confirm your email address", AccountEmailTemplates.Verification(link), ct);
+    }
 
-        using var client = new SmtpClient { Timeout = 15_000 };
+    public Task SendPasswordResetAsync(string email, string token, CancellationToken ct)
+    {
+        var link = BuildClientLink("/reset-password", email, token);
+        return SendAsync(email, "Reset your Coding password", AccountEmailTemplates.PasswordReset(link), ct);
+    }
+
+    public async Task SendAsync(string to, string subject, string htmlBody, CancellationToken ct = default)
+    {
+        var settings = options.Value;
+        using var client = new SmtpClient
+        {
+            Timeout = 15_000,
+            CheckCertificateRevocation = settings.CheckCertificateRevocation
+        };
         try
         {
-            var socketOptions = settings.EnableSsl
-                ? SecureSocketOptions.StartTls
-                : SecureSocketOptions.None;
-            logger.LogInformation("Sending {EmailType} email through configured SMTP host {Host}.", heading, settings.Host);
+            var message = new MimeMessage();
+            message.From.Add(new MailboxAddress(settings.FromName, settings.FromEmail));
+            message.ReplyTo.Add(new MailboxAddress(settings.FromName, settings.FromEmail));
+            message.To.Add(MailboxAddress.Parse(to));
+            message.Subject = subject;
+            message.Body = new BodyBuilder
+            {
+                HtmlBody = htmlBody,
+                TextBody = CreatePlainTextBody(htmlBody)
+            }.ToMessageBody();
+
+            var socketOptions = settings.UseSsl
+                ? SecureSocketOptions.SslOnConnect
+                : settings.UseStartTls
+                    ? SecureSocketOptions.StartTls
+                    : SecureSocketOptions.Auto;
+            logger.LogInformation("Sending email through configured SMTP host {Host}.", settings.Host);
             await client.ConnectAsync(settings.Host, settings.Port, socketOptions, ct);
-            await client.AuthenticateAsync(settings.Username, settings.Password, ct);
+            if (!string.IsNullOrWhiteSpace(settings.Username))
+                await client.AuthenticateAsync(settings.Username, settings.Password, ct);
             await client.SendAsync(message, ct);
+            logger.LogInformation("Email was accepted by the configured SMTP provider.");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -43,24 +63,32 @@ public sealed class SmtpEmailSender(IOptions<SmtpOptions> options, ILogger<SmtpE
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "SMTP delivery failed through host {Host}.", settings.Host);
+            logger.LogError(exception, "SMTP delivery failed through host {Host}.", settings.Host);
             throw new EmailDeliveryException("The configured SMTP provider could not deliver the email.", exception);
         }
         finally
         {
             if (client.IsConnected)
-                await client.DisconnectAsync(true, CancellationToken.None);
+            {
+                try
+                {
+                    await client.DisconnectAsync(true, CancellationToken.None);
+                }
+                catch (Exception exception)
+                {
+                    logger.LogWarning(exception, "SMTP disconnect did not complete cleanly.");
+                }
+            }
         }
     }
 
-    private static string Template(string heading, string description, string link) => $"""
-        <!doctype html><html><body style="margin:0;background:#f4f6fb;font-family:Arial,sans-serif;color:#152039">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px">
-        <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:100%;background:white;border:1px solid #e2e6ef;border-radius:14px">
-        <tr><td style="padding:32px"><div style="font-size:20px;font-weight:800;color:#6256e8">NexaCode</div>
-        <h1 style="font-size:24px;margin:28px 0 12px">{WebUtility.HtmlEncode(heading)}</h1><p style="color:#667085;line-height:1.6">{WebUtility.HtmlEncode(description)}</p>
-        <a href="{WebUtility.HtmlEncode(link)}" style="display:inline-block;margin-top:16px;padding:13px 20px;border-radius:8px;background:#6256e8;color:white;text-decoration:none;font-weight:700">{WebUtility.HtmlEncode(heading)}</a>
-        <p style="margin-top:28px;color:#98a2b3;font-size:12px;word-break:break-all">If the button does not work, open: {WebUtility.HtmlEncode(link)}</p></td></tr></table>
-        </td></tr></table></body></html>
-        """;
+    private string BuildClientLink(string path, string email, string token) =>
+        $"{options.Value.ClientBaseUrl.TrimEnd('/')}{path}?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
+
+    private static string CreatePlainTextBody(string htmlBody)
+    {
+        var withLineBreaks = Regex.Replace(htmlBody, "<(br|/p|/div|/h[1-6]|/tr)[^>]*>", "\n", RegexOptions.IgnoreCase);
+        var withoutTags = Regex.Replace(withLineBreaks, "<[^>]+>", string.Empty);
+        return WebUtility.HtmlDecode(withoutTags).Trim();
+    }
 }

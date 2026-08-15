@@ -1,5 +1,5 @@
 import { apiClient } from "../../services/apiClient";
-export interface Profile{id:string;firstName:string;lastName:string;userName:string;email:string;bio?:string;avatarUrl?:string}
+export interface Profile{id:string;publicId:string;firstName:string;lastName:string;userName:string;email:string;bio?:string;avatarUrl?:string}
 export interface Preference{theme:string;language:string;reducedMotion:boolean;compactMode:boolean;securityAlertsEnabled:boolean}
 export interface NotificationPreference{type:string;inAppEnabled:boolean;emailEnabled:boolean}
 export interface Settings{profile:Profile;preferences:Preference;notifications:NotificationPreference[]}

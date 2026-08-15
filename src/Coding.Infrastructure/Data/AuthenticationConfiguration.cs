@@ -10,8 +10,10 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
     {
         builder.HasIndex(item => item.Email).IsUnique();
         builder.HasIndex(item => item.UserName).IsUnique();
+        builder.HasIndex(item => item.PublicId).IsUnique();
         builder.Property(item => item.Email).HasMaxLength(254);
         builder.Property(item => item.UserName).HasMaxLength(50);
+        builder.Property(item => item.PublicId).HasMaxLength(8).IsRequired();
         builder.Property(item => item.PasswordHash).HasMaxLength(100);
         builder.Property(item => item.SuspensionReason).HasMaxLength(500);
     }

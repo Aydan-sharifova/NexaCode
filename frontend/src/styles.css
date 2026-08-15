@@ -159,6 +159,18 @@ form { display: grid; gap: 1.15rem; }
 .primary-button:hover:not(:disabled) { background-position: 100% 0; transform: translateY(-2px); box-shadow: 0 16px 34px rgba(79,70,229,.3); }
 .primary-button:focus-visible { outline: 3px solid rgba(99, 102, 241, 0.3); outline-offset: 2px; }
 .primary-button:disabled { opacity: 0.66; cursor: wait; }
+.verification-pending { display: grid; justify-items: center; text-align: center; }
+.verification-pending .form-heading { margin-bottom: 1.35rem; }
+.verification-pending .form-heading strong { color: var(--auth-ink); font-weight: 700; overflow-wrap: anywhere; }
+.verification-icon { display: grid; place-items: center; width: 4.25rem; height: 4.25rem; margin-bottom: 1.15rem; color: #5c50dc; border: 1px solid rgba(97,80,213,.2); border-radius: 1.25rem; background: linear-gradient(145deg, #f0efff, #fff); box-shadow: 0 14px 30px rgba(79,70,229,.13); font-size: 1.6rem; }
+.verification-note { display: flex; align-items: flex-start; gap: .7rem; width: 100%; padding: .9rem 1rem; color: #525a70; border: 1px solid #e3e4ee; border-radius: .8rem; background: #f8f8fc; text-align: left; font-size: .8rem; line-height: 1.5; }
+.verification-note span { flex: 0 0 auto; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; color: white; border-radius: 50%; background: #7467e9; font-size: .72rem; font-weight: 800; }
+.verification-note p { margin: 0; }
+.verification-pending .primary-button { width: 100%; margin-top: 1rem; }
+.verification-status { width: 100%; margin: .9rem 0 0; font-size: .82rem; }
+.verification-status.success { color: #087443; }
+.verification-status.error { color: #b42318; }
+.verification-signin { margin-top: 1rem; color: #5d55cb; font-size: .82rem; font-weight: 700; }
 .auth-switch { position: relative; z-index: 2; margin: 1.2rem auto auto; color: var(--auth-muted); text-align: center; font-size: 0.78rem; }
 .auth-switch span { margin: 0 .2rem; color: #b0b3c0; }
 

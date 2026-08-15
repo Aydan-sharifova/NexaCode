@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "../components/FormField";
@@ -32,7 +32,7 @@ export function LoginPage() {
     }
   });
 
-  if (!isInitializing && session) return <Navigate to="/dashboard" replace />;
+  if (!isInitializing && session) return <Navigate to={!session.user.isDemo && !session.user.isEmailVerified ? "/register" : "/dashboard"} replace />;
 
   return (
     <>
@@ -45,6 +45,7 @@ export function LoginPage() {
         {serverError && <div className="form-alert" role="alert">{serverError}</div>}
         <FormField label="Email address" type="email" autoComplete="email" placeholder="you@company.com" error={errors.email?.message} {...register("email")} />
         <FormField label="Password" type="password" autoComplete="current-password" placeholder="Enter your password" error={errors.password?.message} {...register("password")} />
+        <p className="auth-switch"><Link to="/forgot-password">Forgot password?</Link></p>
         <button className="primary-button" type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Signing in…" : "Sign in"}
         </button>

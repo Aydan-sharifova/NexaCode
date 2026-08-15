@@ -3,7 +3,7 @@ using MediatR;
 
 namespace Coding.Application.Features.UserSettings;
 
-public sealed record UserProfileDto(Guid Id, string FirstName, string LastName, string UserName, string Email, string? Bio, string? AvatarUrl);
+public sealed record UserProfileDto(Guid Id, string PublicId, string FirstName, string LastName, string UserName, string Email, string? Bio, string? AvatarUrl);
 public sealed record UserPreferenceDto(string Theme, string Language, bool ReducedMotion, bool CompactMode, bool SecurityAlertsEnabled);
 public sealed record UserSessionDto(Guid Id, string? IpAddress, string Device, DateTime CreatedAt, DateTime LastSeenAt, DateTime ExpiresAt, bool IsCurrent);
 public sealed record NotificationPreferenceDto(string Type, bool InAppEnabled, bool EmailEnabled);

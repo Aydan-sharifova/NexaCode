@@ -89,7 +89,9 @@ async function request<TResponse>(path: string, options: RequestOptions = {}): P
   }
   if (!response.ok) throw await getError(response);
   if (response.status === 204) return undefined as TResponse;
-  return await response.json() as TResponse;
+  const responseText = await response.text();
+  if (!responseText) return undefined as TResponse;
+  return JSON.parse(responseText) as TResponse;
 }
 
 export const apiClient = {

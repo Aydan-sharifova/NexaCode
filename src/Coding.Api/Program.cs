@@ -1,6 +1,6 @@
 using Coding.Api.Configuration;
-using Coding.Infrastructure;
 using Coding.Data;
+using Coding.Infrastructure;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Serilog;

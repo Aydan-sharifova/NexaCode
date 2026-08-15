@@ -3,6 +3,7 @@ using Coding.Application.Abstractions;
 using Coding.Application.Features.Notifications;
 using Coding.Data;
 using Coding.Exceptions;
+using Coding.Enums;
 using Coding.Models;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -60,6 +61,22 @@ public sealed class NotificationService(AppDbContext db, INotificationRealtimePu
         foreach (var item in items) await realtime.NotificationReceivedAsync(item, ct);
         foreach (var userId in entities.Select(item => item.UserId).Distinct()) await realtime.UnreadCountUpdatedAsync(userId, await UnreadCount(userId, ct), ct);
         return items;
+    }
+
+    public async Task MarkRelatedReadAsync(Guid userId, NotificationType type, Guid relatedEntityId, CancellationToken ct = default)
+    {
+        var ids = await db.Notifications
+            .Where(item => item.UserId == userId && item.Type == type && item.RelatedEntityId == relatedEntityId && !item.IsRead)
+            .Select(item => item.ID)
+            .ToListAsync(ct);
+        if (ids.Count == 0) return;
+        var now = DateTime.UtcNow;
+        await db.Notifications.Where(item => ids.Contains(item.ID)).ExecuteUpdateAsync(setters => setters
+            .SetProperty(item => item.IsRead, true)
+            .SetProperty(item => item.ReadAt, now)
+            .SetProperty(item => item.UpdateAt, now), ct);
+        foreach (var id in ids) await realtime.NotificationReadAsync(userId, id, ct);
+        await realtime.UnreadCountUpdatedAsync(userId, await UnreadCount(userId, ct), ct);
     }
 
     private Task<int> UnreadCount(Guid userId, CancellationToken ct) => db.Notifications.CountAsync(item => item.UserId == userId && !item.IsRead, ct);

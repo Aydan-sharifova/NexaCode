@@ -9,7 +9,7 @@ public sealed record ChatMessageItem(Guid Id, Guid ConversationId, ChatUser Send
 public sealed record CursorPage<T>(IReadOnlyList<T> Items, string? NextCursor);
 public sealed record UnreadConversationCount(Guid ConversationId, int Count);
 
-public sealed record CreateDirectConversationCommand(Guid OtherUserId) : IRequest<ConversationItem>;
+public sealed record CreateDirectConversationCommand(string OtherUserId) : IRequest<ConversationItem>;
 public sealed record SendMessageCommand(Guid ConversationId, string Content) : IRequest<ChatMessageItem>;
 public sealed record MarkConversationAsReadCommand(Guid ConversationId, Guid? ThroughMessageId) : IRequest;
 public sealed record DeleteOwnMessageCommand(Guid MessageId) : IRequest;
@@ -19,7 +19,7 @@ public sealed record GetUnreadConversationCountsQuery : IRequest<IReadOnlyList<U
 
 public sealed class CreateDirectConversationValidator : AbstractValidator<CreateDirectConversationCommand>
 {
-    public CreateDirectConversationValidator() => RuleFor(item => item.OtherUserId).NotEmpty();
+    public CreateDirectConversationValidator() => RuleFor(item => item.OtherUserId).NotEmpty().MaximumLength(254);
 }
 public sealed class SendMessageValidator : AbstractValidator<SendMessageCommand>
 {
