@@ -1,35 +1,58 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
 import { AuthLayout } from "./layouts/AuthLayout";
 import { useAuth } from "./hooks/useAuth";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { RequireSystemRole } from "./components/RequireSystemRole";
 import { PageSkeleton } from "./components/AsyncState";
 
-const LoginPage = lazy(() => import("./pages/LoginPage").then((module) => ({ default: module.LoginPage })));
-const RegisterPage = lazy(() => import("./pages/RegisterPage").then((module) => ({ default: module.RegisterPage })));
-const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage").then((module) => ({ default: module.ForgotPasswordPage })));
-const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage").then((module) => ({ default: module.ResetPasswordPage })));
-const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage").then((module) => ({ default: module.VerifyEmailPage })));
-const GuestAiPage = lazy(() => import("./pages/GuestAiPage").then((module) => ({ default: module.GuestAiPage })));
-const DemoLoginPage = lazy(() => import("./pages/DemoLoginPage").then((module) => ({ default: module.DemoLoginPage })));
-const ErrorPage = lazy(() => import("./pages/ErrorPage").then((module) => ({ default: module.ErrorPage })));
-const DashboardLayout = lazy(() => import("./layouts/DashboardLayout").then((module) => ({ default: module.DashboardLayout })));
-const DashboardPage = lazy(() => import("./pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
-const ProjectsPage = lazy(() => import("./pages/ProjectsPage").then((module) => ({ default: module.ProjectsPage })));
-const ProjectSettingsPage = lazy(() => import("./pages/ProjectSettingsPage").then((module) => ({ default: module.ProjectSettingsPage })));
-const InvitationPage = lazy(() => import("./pages/InvitationPage").then((module) => ({ default: module.InvitationPage })));
-const FileExplorerPage = lazy(() => import("./pages/FileExplorerPage").then((module) => ({ default: module.FileExplorerPage })));
-const ChatPage = lazy(() => import("./pages/ChatPage").then((module) => ({ default: module.ChatPage })));
-const NotificationCenterPage = lazy(() => import("./pages/NotificationCenterPage").then((module) => ({ default: module.NotificationCenterPage })));
+const dynamicImportRetryKey = "coding:dynamic-import-retry";
+function lazyRoute<T extends ComponentType<any>>(loader: () => Promise<{ default: T }>) {
+  return lazy(async () => {
+    try {
+      const loaded = await loader();
+      sessionStorage.removeItem(dynamicImportRetryKey);
+      return loaded;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      const isImportFailure = /dynamically imported module|loading chunk|importing a module/i.test(message);
+      if (isImportFailure && !sessionStorage.getItem(dynamicImportRetryKey)) {
+        sessionStorage.setItem(dynamicImportRetryKey, window.location.pathname);
+        window.location.reload();
+        return await new Promise<never>(() => undefined);
+      }
+      sessionStorage.removeItem(dynamicImportRetryKey);
+      throw error;
+    }
+  });
+}
+
+const LoginPage = lazyRoute(() => import("./pages/LoginPage").then((module) => ({ default: module.LoginPage })));
+const RegisterPage = lazyRoute(() => import("./pages/RegisterPage").then((module) => ({ default: module.RegisterPage })));
+const ForgotPasswordPage = lazyRoute(() => import("./pages/ForgotPasswordPage").then((module) => ({ default: module.ForgotPasswordPage })));
+const ResetPasswordPage = lazyRoute(() => import("./pages/ResetPasswordPage").then((module) => ({ default: module.ResetPasswordPage })));
+const VerifyEmailPage = lazyRoute(() => import("./pages/VerifyEmailPage").then((module) => ({ default: module.VerifyEmailPage })));
+const GuestAiPage = lazyRoute(() => import("./pages/GuestAiPage").then((module) => ({ default: module.GuestAiPage })));
+const DemoLoginPage = lazyRoute(() => import("./pages/DemoLoginPage").then((module) => ({ default: module.DemoLoginPage })));
+const ErrorPage = lazyRoute(() => import("./pages/ErrorPage").then((module) => ({ default: module.ErrorPage })));
+const DashboardLayout = lazyRoute(() => import("./layouts/DashboardLayout").then((module) => ({ default: module.DashboardLayout })));
+const DashboardPage = lazyRoute(() => import("./pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
+const ProjectsPage = lazyRoute(() => import("./pages/ProjectsPage").then((module) => ({ default: module.ProjectsPage })));
+const ProjectSettingsPage = lazyRoute(() => import("./pages/ProjectSettingsPage").then((module) => ({ default: module.ProjectSettingsPage })));
+const InvitationPage = lazyRoute(() => import("./pages/InvitationPage").then((module) => ({ default: module.InvitationPage })));
+const FileExplorerPage = lazyRoute(() => import("./pages/FileExplorerPage").then((module) => ({ default: module.FileExplorerPage })));
+const ChatPage = lazyRoute(() => import("./pages/ChatPage").then((module) => ({ default: module.ChatPage })));
+const NotificationCenterPage = lazyRoute(() => import("./pages/NotificationCenterPage").then((module) => ({ default: module.NotificationCenterPage })));
+// Keep in-app board navigation client-side. Automatically reloading this protected
+// route can unnecessarily recreate the auth session and trigger the auth limiter.
 const KanbanPage = lazy(() => import("./pages/KanbanPage").then((module) => ({ default: module.KanbanPage })));
-const AdminActivityPage = lazy(() => import("./pages/AdminActivityPage").then((module) => ({ default: module.AdminActivityPage })));
-const SettingsPage = lazy(() => import("./pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
-const HelpCenterPage = lazy(() => import("./pages/HelpCenterPage").then((module) => ({ default: module.HelpCenterPage })));
-const TeamPage = lazy(() => import("./pages/TeamPage").then((module) => ({ default: module.TeamPage })));
-const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
-const AdminPage = lazy(() => import("./pages/AdminPage").then((module) => ({ default: module.AdminPage })));
-const ProjectToolPage = lazy(() => import("./pages/ProjectToolPage").then((module) => ({ default: module.ProjectToolPage })));
+const AdminActivityPage = lazyRoute(() => import("./pages/AdminActivityPage").then((module) => ({ default: module.AdminActivityPage })));
+const SettingsPage = lazyRoute(() => import("./pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
+const HelpCenterPage = lazyRoute(() => import("./pages/HelpCenterPage").then((module) => ({ default: module.HelpCenterPage })));
+const TeamPage = lazyRoute(() => import("./pages/TeamPage").then((module) => ({ default: module.TeamPage })));
+const AnalyticsPage = lazyRoute(() => import("./pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
+const AdminPage = lazyRoute(() => import("./pages/AdminPage").then((module) => ({ default: module.AdminPage })));
+const ProjectToolPage = lazyRoute(() => import("./pages/ProjectToolPage").then((module) => ({ default: module.ProjectToolPage })));
 
 function ProtectedDashboard() {
   const { session, isInitializing } = useAuth();

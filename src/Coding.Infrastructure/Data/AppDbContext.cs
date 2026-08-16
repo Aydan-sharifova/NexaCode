@@ -25,6 +25,7 @@ namespace Coding.Data
         public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
 
         public DbSet<Project> Projects => Set<Project>();
+        public DbSet<ProgrammingLanguage> ProgrammingLanguages => Set<ProgrammingLanguage>();
 
         public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
 
@@ -46,6 +47,7 @@ namespace Coding.Data
         public DbSet<Conversation> Conversations => Set<Conversation>();
         public DbSet<ConversationParticipant> ConversationParticipants => Set<ConversationParticipant>();
         public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+        public DbSet<ChatAttachment> ChatAttachments => Set<ChatAttachment>();
         public DbSet<MessageReadReceipt> MessageReadReceipts => Set<MessageReadReceipt>();
         public DbSet<ProjectTask> ProjectTasks => Set<ProjectTask>();
         public DbSet<TaskAssignee> TaskAssignees => Set<TaskAssignee>();

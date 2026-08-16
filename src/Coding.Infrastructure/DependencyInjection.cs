@@ -23,6 +23,8 @@ using Coding.Application.Features.Collaboration;
 using Coding.Infrastructure.Collaboration;
 using Coding.Application.Features.Users;
 using Coding.Infrastructure.Users;
+using Coding.Application.Features.Repositories;
+using Coding.Infrastructure.Repositories;
 
 namespace Coding.Infrastructure;
 
@@ -57,6 +59,11 @@ public static class DependencyInjection
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IUserLookupService, UserLookupService>();
         services.AddScoped<IPublicUserIdGenerator, PublicUserIdGenerator>();
+        services.AddOptions<RepositoryStorageOptions>()
+            .Bind(configuration.GetSection(RepositoryStorageOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.RootPath), "Repository storage root is required.")
+            .ValidateOnStart();
+        services.AddSingleton<IGitRepositoryService, NativeGitRepositoryService>();
         services.AddSingleton<ICacheService, MemoryCacheService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<SmtpSettings>, SmtpSettingsValidator>();

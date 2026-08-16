@@ -94,8 +94,17 @@ async function request<TResponse>(path: string, options: RequestOptions = {}): P
   return JSON.parse(responseText) as TResponse;
 }
 
+async function requestBlob(path: string, retryOnUnauthorized = true): Promise<Blob> {
+  const token = tokenStore.get();
+  const response = await fetch(`${API_URL}${path}`, { credentials: "include", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (response.status === 401 && retryOnUnauthorized) { await refreshSession(); return requestBlob(path, false); }
+  if (!response.ok) throw await getError(response);
+  return response.blob();
+}
+
 export const apiClient = {
   get: <TResponse>(path: string, options?: RequestOptions) => request<TResponse>(path, options),
+  getBlob: (path: string) => requestBlob(path),
   post: <TResponse>(path: string, body?: unknown, options?: RequestOptions) => request<TResponse>(path, {
     ...options,
     method: "POST",

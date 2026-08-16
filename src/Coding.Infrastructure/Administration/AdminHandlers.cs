@@ -6,6 +6,7 @@ using Coding.Infrastructure.Authentication;
 using Coding.Models;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace Coding.Infrastructure.Administration;
 
@@ -151,5 +152,83 @@ public sealed class GetPlatformStatisticsHandler(AppDbContext db) : IRequestHand
     {
         var since = DateTime.UtcNow.AddDays(-30);
         return new(await db.Users.CountAsync(x => !x.IsDeleted, ct), await db.Users.CountAsync(x => !x.IsDeleted && x.LastSeen >= since, ct), await db.Users.CountAsync(x => x.IsSuspended, ct), await db.Projects.CountAsync(ct), await db.Projects.CountAsync(x => x.CreatedAt >= since, ct), await db.ActivityLogs.CountAsync(x => x.CreatedAt >= since, ct));
+    }
+}
+
+public sealed class ListProgrammingLanguagesHandler(AppDbContext db) : IRequestHandler<ListProgrammingLanguagesQuery, IReadOnlyList<ProgrammingLanguageItem>>
+{
+    public async Task<IReadOnlyList<ProgrammingLanguageItem>> Handle(ListProgrammingLanguagesQuery request, CancellationToken ct) =>
+        await db.ProgrammingLanguages.AsNoTracking()
+            .Where(language => request.IncludeInactive || language.IsActive)
+            .OrderBy(language => language.SortOrder).ThenBy(language => language.Name)
+            .Select(language => new ProgrammingLanguageItem(language.ID, language.Name, language.Slug, language.SortOrder, language.IsActive))
+            .ToListAsync(ct);
+}
+
+internal static partial class ProgrammingLanguageRules
+{
+    public static string Name(string value)
+    {
+        var name = value.Trim();
+        if (name.Length is < 1 or > 50) throw new InvalidOperationException("Language name must contain 1 to 50 characters.");
+        return name;
+    }
+
+    public static string Slug(string? value, string name)
+    {
+        var slug = string.IsNullOrWhiteSpace(value) ? name : value.Trim();
+        slug = InvalidSlugCharacters().Replace(slug.ToLowerInvariant(), "-").Trim('-');
+        if (slug.Length is < 1 or > 50) throw new InvalidOperationException("Language slug must contain 1 to 50 URL-safe characters.");
+        return slug;
+    }
+
+    [GeneratedRegex("[^a-z0-9+#.]+")]
+    private static partial Regex InvalidSlugCharacters();
+}
+
+public sealed class CreateProgrammingLanguageHandler(AppDbContext db, ICurrentUser current, IActivityLogger audit) : IRequestHandler<CreateProgrammingLanguageCommand, ProgrammingLanguageItem>
+{
+    public async Task<ProgrammingLanguageItem> Handle(CreateProgrammingLanguageCommand request, CancellationToken ct)
+    {
+        var name = ProgrammingLanguageRules.Name(request.Name);
+        var slug = ProgrammingLanguageRules.Slug(request.Slug, name);
+        if (await db.ProgrammingLanguages.AnyAsync(x => x.Name.ToLower() == name.ToLower() || x.Slug == slug, ct))
+            throw new InvalidOperationException("A language with this name or slug already exists.");
+        var language = new ProgrammingLanguage { ID = Guid.NewGuid(), Name = name, Slug = slug, SortOrder = request.SortOrder, IsActive = true };
+        db.ProgrammingLanguages.Add(language);
+        await db.SaveChangesAsync(ct);
+        await audit.LogAsync(new(current.UserId, null, "ProgrammingLanguageCreated", nameof(ProgrammingLanguage), language.ID, $"Administrator added {name}."), ct);
+        return new(language.ID, language.Name, language.Slug, language.SortOrder, language.IsActive);
+    }
+}
+
+public sealed class UpdateProgrammingLanguageHandler(AppDbContext db, ICurrentUser current, IActivityLogger audit) : IRequestHandler<UpdateProgrammingLanguageCommand, ProgrammingLanguageItem>
+{
+    public async Task<ProgrammingLanguageItem> Handle(UpdateProgrammingLanguageCommand request, CancellationToken ct)
+    {
+        var language = await db.ProgrammingLanguages.SingleOrDefaultAsync(x => x.ID == request.Id, ct) ?? throw new KeyNotFoundException("Programming language was not found.");
+        var name = ProgrammingLanguageRules.Name(request.Name);
+        var slug = ProgrammingLanguageRules.Slug(request.Slug, name);
+        if (await db.ProgrammingLanguages.AnyAsync(x => x.ID != request.Id && (x.Name.ToLower() == name.ToLower() || x.Slug == slug), ct))
+            throw new InvalidOperationException("A language with this name or slug already exists.");
+        if (!request.IsActive && language.IsActive && await db.ProgrammingLanguages.CountAsync(x => x.IsActive, ct) <= 1)
+            throw new InvalidOperationException("At least one programming language must remain active.");
+        language.Name = name; language.Slug = slug; language.SortOrder = request.SortOrder; language.IsActive = request.IsActive; language.UpdateAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+        await audit.LogAsync(new(current.UserId, null, "ProgrammingLanguageUpdated", nameof(ProgrammingLanguage), language.ID, $"Administrator updated {name}."), ct);
+        return new(language.ID, language.Name, language.Slug, language.SortOrder, language.IsActive);
+    }
+}
+
+public sealed class DeleteProgrammingLanguageHandler(AppDbContext db, ICurrentUser current, IActivityLogger audit) : IRequestHandler<DeleteProgrammingLanguageCommand>
+{
+    public async Task Handle(DeleteProgrammingLanguageCommand request, CancellationToken ct)
+    {
+        var language = await db.ProgrammingLanguages.SingleOrDefaultAsync(x => x.ID == request.Id, ct) ?? throw new KeyNotFoundException("Programming language was not found.");
+        if (language.IsActive && await db.ProgrammingLanguages.CountAsync(x => x.IsActive, ct) <= 1)
+            throw new InvalidOperationException("At least one programming language must remain active.");
+        language.IsDeleted = true; language.IsActive = false; language.DeletedAt = language.UpdateAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+        await audit.LogAsync(new(current.UserId, null, "ProgrammingLanguageDeleted", nameof(ProgrammingLanguage), language.ID, $"Administrator removed {language.Name}."), ct);
     }
 }

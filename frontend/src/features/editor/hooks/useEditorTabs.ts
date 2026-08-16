@@ -16,7 +16,7 @@ export function useEditorTabs() {
   const rightPanelVisible = useEditorStore((state) => state.rightPanelVisible);
   const activateTab = useEditorStore((state) => state.activateTab);
   const openTab = useEditorStore((state) => state.openTab);
-  const closeTab = useEditorStore((state) => state.closeTab);
+  const closeStoreTab = useEditorStore((state) => state.closeTab);
   const discardChanges = useEditorStore((state) => state.discardChanges);
   const acceptExternal = useEditorStore((state) => state.acceptExternal);
   const setFontSize = useEditorStore((state) => state.setFontSize);
@@ -24,8 +24,14 @@ export function useEditorTabs() {
   const toggleRightPanel = useEditorStore((state) => state.toggleRightPanel);
   const openFile = async (node: WorkspaceNode) => {
     if (useEditorStore.getState().tabs[node.id]) { activateTab(node.id); return; }
+    if (/\.(png|jpe?g|webp|gif|svg)$/i.test(node.name)) {
+      const blob = await fileExplorerApi.raw(node.id);
+      openTab({ id: node.id, name: node.name, path: node.path, language: "plaintext", content: "", savedContent: "", concurrencyToken: "", viewer: "image", objectUrl: URL.createObjectURL(blob) });
+      return;
+    }
     const file = await queryClient.fetchQuery({ queryKey: ["file-content", node.id], queryFn: () => fileExplorerApi.content(node.id) });
     openTab({ id: node.id, name: node.name, path: file.path, language: detectLanguage(node.name), content: file.content, savedContent: file.content, concurrencyToken: file.concurrencyToken });
   };
+  const closeTab = (id: string) => { const url = useEditorStore.getState().tabs[id]?.objectUrl; if (url) URL.revokeObjectURL(url); closeStoreTab(id); };
   return { tabs, openTabIds, activeTabId, closedTabHistory, fontSize, leftWidth, rightWidth, rightPanelVisible, activateTab, closeTab, discardChanges, acceptExternal, setFontSize, setPanelWidths, toggleRightPanel, openFile, activeTab: activeTabId ? tabs[activeTabId] : undefined };
 }

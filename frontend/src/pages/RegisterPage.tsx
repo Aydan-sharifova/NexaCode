@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "../components/FormField";
@@ -22,10 +22,12 @@ const registerSchema = z.object({
 type RegisterValues = z.infer<typeof registerSchema>;
 
 export function RegisterPage() {
-  const { register: createAccount, session, isInitializing } = useAuth();
+  const { register: createAccount, logout, session, isInitializing } = useAuth();
+  const navigate = useNavigate();
   const [serverError, setServerError] = useState<string | null>(null);
   const [registeredEmail, setRegisteredEmail] = useState<string>();
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: { firstName: "", lastName: "", userName: "", email: "", password: "", confirmPassword: "" },
@@ -55,6 +57,15 @@ export function RegisterPage() {
         setResendState("error");
       }
     };
+    const useDifferentAccount = async () => {
+      setIsSwitchingAccount(true);
+      setRegisteredEmail(undefined);
+      try {
+        await logout();
+      } finally {
+        navigate("/login", { replace: true });
+      }
+    };
     return <section className="verification-pending">
       <div className="verification-icon" aria-hidden="true">✉</div>
       <header className="form-heading">
@@ -66,7 +77,14 @@ export function RegisterPage() {
       {resendState === "sent" && <p className="verification-status success" role="status">A fresh verification email was sent.</p>}
       {resendState === "error" && <p className="verification-status error" role="alert">We could not resend the email. Please try again.</p>}
       <button className="primary-button" type="button" disabled={resendState === "sending"} onClick={() => void resend()}>{resendState === "sending" ? "Sending…" : "Resend verification email"}</button>
-      <Link className="verification-signin" to="/login">Use a different account</Link>
+      <button
+        className="verification-signin"
+        type="button"
+        disabled={isSwitchingAccount}
+        onClick={() => void useDifferentAccount()}
+      >
+        {isSwitchingAccount ? "Switching account…" : "Use a different account"}
+      </button>
     </section>;
   }
 

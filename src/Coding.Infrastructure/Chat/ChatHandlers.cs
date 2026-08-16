@@ -54,8 +54,10 @@ internal static partial class ChatSupport
             new ChatUser(message.SenderId, message.Sender.UserName, message.Sender.FirstName + " " + message.Sender.LastName, message.Sender.AvatarUrl),
             message.IsDeleted ? "Message deleted" : message.Content,
             message.CreatedAt,
+            message.EditedAtUtc,
             message.IsDeleted,
-            message.ReadReceipts.Select(receipt => receipt.UserId).ToList()));
+            message.ReadReceipts.Select(receipt => receipt.UserId).ToList(),
+            message.IsDeleted ? new List<ChatAttachmentItem>() : message.Attachments.Select(attachment => new ChatAttachmentItem(attachment.ID, attachment.FileName, attachment.ContentType, attachment.Size)).ToList()));
 
     public static IReadOnlyCollection<string> Mentions(string content) =>
         MentionRegex().Matches(content).Select(match => match.Groups[1].Value).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -139,7 +141,7 @@ public sealed class SendMessageHandler(
         trackedConversation.UpdatedAt = now;
         await db.SaveChangesAsync(ct);
 
-        var dto = new ChatMessageItem(message.ID, message.ConversationId, new ChatUser(sender.ID, sender.UserName, sender.FirstName + " " + sender.LastName, sender.AvatarUrl), message.Content, now, false, [currentUser.UserId]);
+        var dto = new ChatMessageItem(message.ID, message.ConversationId, new ChatUser(sender.ID, sender.UserName, sender.FirstName + " " + sender.LastName, sender.AvatarUrl), message.Content, now, null, false, [currentUser.UserId], []);
         var notificationRequests = new List<CreateNotificationRequest>();
         if (conversation.Type == ConversationType.Direct)
             notificationRequests.AddRange(participantIds.Where(id => id != currentUser.UserId).Select(id =>
@@ -211,6 +213,89 @@ public sealed class DeleteOwnMessageHandler(AppDbContext db, ICurrentUser curren
         await db.SaveChangesAsync(ct);
         var ids = await db.ConversationParticipants.Where(item => item.ConversationId == message.ConversationId).Select(item => item.UserId).ToListAsync(ct);
         await realtime.ConversationUpdatedAsync(message.ConversationId, ids, ct);
+    }
+}
+
+public sealed class EditOwnMessageHandler(AppDbContext db, ICurrentUser currentUser, IChatRealtimePublisher realtime) : IRequestHandler<EditOwnMessageCommand, ChatMessageItem>
+{
+    public async Task<ChatMessageItem> Handle(EditOwnMessageCommand request, CancellationToken ct)
+    {
+        var message = await db.ChatMessages.SingleOrDefaultAsync(item => item.ID == request.MessageId, ct) ?? throw new NotFoundException("Message not found.");
+        if (message.SenderId != currentUser.UserId) throw new ForbiddenException("You can edit only your own messages.");
+        if (message.IsDeleted) throw new ConflictException("A deleted message cannot be edited.");
+        message.Content = request.Content.Trim(); message.EditedAtUtc = message.UpdateAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+        var ids = await db.ConversationParticipants.Where(item => item.ConversationId == message.ConversationId).Select(item => item.UserId).ToListAsync(ct);
+        await realtime.ConversationUpdatedAsync(message.ConversationId, ids, ct);
+        return await ChatSupport.ProjectMessages(db.ChatMessages.AsNoTracking().Where(item => item.ID == message.ID)).SingleAsync(ct);
+    }
+}
+
+public sealed class DeleteConversationHandler(AppDbContext db, ICurrentUser currentUser, IChatRealtimePublisher realtime) : IRequestHandler<DeleteConversationCommand>
+{
+    public async Task Handle(DeleteConversationCommand request, CancellationToken ct)
+    {
+        await ChatSupport.RequireParticipant(db, request.ConversationId, currentUser.UserId, ct);
+        var conversation = await db.Conversations.SingleOrDefaultAsync(item => item.ID == request.ConversationId, ct) ?? throw new NotFoundException("Conversation not found.");
+        if (conversation.Type != ConversationType.Direct) throw new ForbiddenException("Project channels cannot be deleted from chat.");
+        var ids = await db.ConversationParticipants.Where(item => item.ConversationId == request.ConversationId).Select(item => item.UserId).ToListAsync(ct);
+        var storedNames = await db.ChatAttachments.IgnoreQueryFilters().Where(item => item.Message.ConversationId == request.ConversationId).Select(item => item.StoredName).ToListAsync(ct);
+        db.Conversations.Remove(conversation);
+        await db.SaveChangesAsync(ct);
+        var root = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "chat-attachments");
+        foreach (var storedName in storedNames)
+        {
+            var path = Path.Combine(root, storedName);
+            if (File.Exists(path)) File.Delete(path);
+        }
+        await realtime.ConversationUpdatedAsync(request.ConversationId, ids, ct);
+    }
+}
+
+public sealed class SendMessageWithAttachmentHandler(AppDbContext db, ICurrentUser currentUser, IChatRealtimePublisher realtime) : IRequestHandler<SendMessageWithAttachmentCommand, ChatMessageItem>
+{
+    private const int MaxBytes = 10 * 1024 * 1024;
+    private static readonly HashSet<string> BlockedExtensions = new(StringComparer.OrdinalIgnoreCase) { ".app", ".bat", ".cmd", ".com", ".dmg", ".exe", ".js", ".msi", ".pkg", ".ps1", ".scr", ".vbs" };
+
+    public async Task<ChatMessageItem> Handle(SendMessageWithAttachmentCommand request, CancellationToken ct)
+    {
+        await ChatSupport.RequireParticipant(db, request.ConversationId, currentUser.UserId, ct);
+        if (request.Bytes.Length is 0 or > MaxBytes) throw new ValidationException("Attachments must be between 1 byte and 10 MB.");
+        var fileName = Path.GetFileName(request.FileName).Trim();
+        if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 255 || BlockedExtensions.Contains(Path.GetExtension(fileName))) throw new ValidationException("This attachment name or file type is not allowed.");
+        var storedName = $"{Guid.NewGuid():N}{Path.GetExtension(fileName).ToLowerInvariant()}";
+        var root = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "chat-attachments");
+        Directory.CreateDirectory(root);
+        var fullPath = Path.Combine(root, storedName);
+        await File.WriteAllBytesAsync(fullPath, request.Bytes, ct);
+        try
+        {
+            var now = DateTime.UtcNow;
+            var message = new ChatMessage { ID = Guid.NewGuid(), ConversationId = request.ConversationId, SenderId = currentUser.UserId, Content = string.IsNullOrWhiteSpace(request.Content) ? fileName : request.Content.Trim(), CreatedAt = now, CreatAt = now };
+            var attachment = new ChatAttachment { ID = Guid.NewGuid(), Message = message, UploadedById = currentUser.UserId, FileName = fileName, StoredName = storedName, ContentType = string.IsNullOrWhiteSpace(request.ContentType) ? "application/octet-stream" : request.ContentType[..Math.Min(120, request.ContentType.Length)], Size = request.Bytes.LongLength, CreatAt = now };
+            message.Attachments.Add(attachment);
+            db.ChatMessages.Add(message);
+            db.MessageReadReceipts.Add(new MessageReadReceipt { Message = message, UserId = currentUser.UserId, ReadAt = now });
+            var conversation = await db.Conversations.SingleAsync(item => item.ID == request.ConversationId, ct); conversation.UpdatedAt = now;
+            await db.SaveChangesAsync(ct);
+            var dto = await ChatSupport.ProjectMessages(db.ChatMessages.AsNoTracking().Where(item => item.ID == message.ID)).SingleAsync(ct);
+            var ids = await db.ConversationParticipants.Where(item => item.ConversationId == request.ConversationId).Select(item => item.UserId).ToListAsync(ct);
+            await realtime.MessageReceivedAsync(dto, ids, ct); await realtime.ConversationUpdatedAsync(request.ConversationId, ids, ct);
+            return dto;
+        }
+        catch { File.Delete(fullPath); throw; }
+    }
+}
+
+public sealed class GetChatAttachmentHandler(AppDbContext db, ICurrentUser currentUser) : IRequestHandler<GetChatAttachmentQuery, ChatAttachmentDownload>
+{
+    public async Task<ChatAttachmentDownload> Handle(GetChatAttachmentQuery request, CancellationToken ct)
+    {
+        var attachment = await db.ChatAttachments.AsNoTracking().Where(item => item.ID == request.AttachmentId && !item.Message.IsDeleted)
+            .Select(item => new { item.FileName, item.ContentType, item.StoredName, item.Message.ConversationId }).SingleOrDefaultAsync(ct)
+            ?? throw new NotFoundException("Attachment not found.");
+        await ChatSupport.RequireParticipant(db, attachment.ConversationId, currentUser.UserId, ct);
+        return new(attachment.FileName, attachment.ContentType, attachment.StoredName);
     }
 }
 

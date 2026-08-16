@@ -17,9 +17,14 @@ public sealed class AdminController(ISender sender) : ControllerBase
     [HttpDelete("users/{userId:guid}"), Authorize(Roles = "SuperAdmin")] public async Task<IActionResult> DeleteUser(Guid userId, [FromBody] DeleteUserRequest request, CancellationToken ct) { await sender.Send(new DeleteAdminUserCommand(userId, request.Reason), ct); return NoContent(); }
     [HttpGet("projects")] public Task<PageResult<AdminProjectItem>> Projects([FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) => sender.Send(new GetAdminProjectsQuery(search, page, pageSize), ct);
     [HttpDelete("projects/{projectId:guid}")] public async Task<IActionResult> DeleteProject(Guid projectId, [FromBody] DeleteProjectRequest request, CancellationToken ct) { await sender.Send(new DeleteAbusiveProjectCommand(projectId, request.Reason), ct); return NoContent(); }
+    [HttpGet("programming-languages")] public Task<IReadOnlyList<ProgrammingLanguageItem>> Languages(CancellationToken ct) => sender.Send(new ListProgrammingLanguagesQuery(true), ct);
+    [HttpPost("programming-languages")] public Task<ProgrammingLanguageItem> CreateLanguage(ProgrammingLanguageRequest request, CancellationToken ct) => sender.Send(new CreateProgrammingLanguageCommand(request.Name, request.Slug, request.SortOrder), ct);
+    [HttpPut("programming-languages/{id:guid}")] public Task<ProgrammingLanguageItem> UpdateLanguage(Guid id, ProgrammingLanguageRequest request, CancellationToken ct) => sender.Send(new UpdateProgrammingLanguageCommand(id, request.Name, request.Slug, request.SortOrder, request.IsActive), ct);
+    [HttpDelete("programming-languages/{id:guid}")] public async Task<IActionResult> DeleteLanguage(Guid id, CancellationToken ct) { await sender.Send(new DeleteProgrammingLanguageCommand(id), ct); return NoContent(); }
 }
 public sealed record SetSuspensionRequest(bool Suspended, string? Reason);
 public sealed record SetRoleRequest(bool Enabled);
 public sealed record DeleteProjectRequest(string Reason);
 public sealed record UpdateUserRequest(string FirstName, string LastName, string UserName, string Email, string? Bio);
 public sealed record DeleteUserRequest(string Reason);
+public sealed record ProgrammingLanguageRequest(string Name, string? Slug, int SortOrder, bool IsActive = true);

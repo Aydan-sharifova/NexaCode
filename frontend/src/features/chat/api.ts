@@ -7,4 +7,8 @@ export const chatApi = {
   send: (conversationId: string, content: string) => apiClient.post<ChatMessage>(`/chat/conversations/${conversationId}/messages`, { content }),
   read: (conversationId: string, throughMessageId?: string) => apiClient.post<void>(`/chat/conversations/${conversationId}/read`, { throughMessageId }),
   remove: (messageId: string) => apiClient.delete<void>(`/chat/messages/${messageId}`),
+  edit: (messageId: string, content: string) => apiClient.put<ChatMessage>(`/chat/messages/${messageId}`, { content }),
+  deleteConversation: (conversationId: string) => apiClient.delete<void>(`/chat/conversations/${conversationId}`),
+  upload: (conversationId: string, file: File, content?: string) => { const body = new FormData(); body.append("file", file); if (content?.trim()) body.append("content", content.trim()); return apiClient.postForm<ChatMessage>(`/chat/conversations/${conversationId}/attachments`, body); },
+  attachment: (attachmentId: string) => apiClient.getBlob(`/chat/attachments/${attachmentId}`),
 };

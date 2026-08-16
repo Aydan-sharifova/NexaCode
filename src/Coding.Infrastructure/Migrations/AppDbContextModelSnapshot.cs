@@ -761,6 +761,57 @@ namespace Coding.Migrations
                     b.ToTable("AiUsageRecords");
                 });
 
+            modelBuilder.Entity("Coding.Models.ChatAttachment", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StoredName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UploadedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("MessageId");
+
+                    b.HasIndex("UploadedById");
+
+                    b.ToTable("ChatAttachments");
+                });
+
             modelBuilder.Entity("Coding.Models.ChatMessage", b =>
                 {
                     b.Property<Guid>("ID")
@@ -785,6 +836,9 @@ namespace Coding.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EditedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsDeleted")
@@ -1443,6 +1497,113 @@ namespace Coding.Migrations
                     b.ToTable("Notifications");
                 });
 
+            modelBuilder.Entity("Coding.Models.ProgrammingLanguage", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("ProgrammingLanguages", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000001"),
+                            CreatAt = new DateTime(2026, 8, 16, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "TypeScript",
+                            Slug = "typescript",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000002"),
+                            CreatAt = new DateTime(2026, 8, 16, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "C#",
+                            Slug = "csharp",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000003"),
+                            CreatAt = new DateTime(2026, 8, 16, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Python",
+                            Slug = "python",
+                            SortOrder = 30
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000004"),
+                            CreatAt = new DateTime(2026, 8, 16, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Java",
+                            Slug = "java",
+                            SortOrder = 40
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000005"),
+                            CreatAt = new DateTime(2026, 8, 16, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Go",
+                            Slug = "go",
+                            SortOrder = 50
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000006"),
+                            CreatAt = new DateTime(2026, 8, 16, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Other",
+                            Slug = "other",
+                            SortOrder = 1000
+                        });
+                });
+
             modelBuilder.Entity("Coding.Models.Project", b =>
                 {
                     b.Property<Guid>("ID")
@@ -1489,7 +1650,7 @@ namespace Coding.Migrations
 
                     b.HasKey("ID");
 
-                    b.HasIndex("OwnerId", "IsPublic");
+                    b.HasIndex("OwnerId");
 
                     b.HasIndex("WorkspaceId");
 
@@ -2427,6 +2588,25 @@ namespace Coding.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Coding.Models.ChatAttachment", b =>
+                {
+                    b.HasOne("Coding.Models.ChatMessage", "Message")
+                        .WithMany("Attachments")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "UploadedBy")
+                        .WithMany()
+                        .HasForeignKey("UploadedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+
+                    b.Navigation("UploadedBy");
+                });
+
             modelBuilder.Entity("Coding.Models.ChatMessage", b =>
                 {
                     b.HasOne("Coding.Models.Conversation", "Conversation")
@@ -2952,6 +3132,8 @@ namespace Coding.Migrations
 
             modelBuilder.Entity("Coding.Models.ChatMessage", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("ReadReceipts");
                 });
 

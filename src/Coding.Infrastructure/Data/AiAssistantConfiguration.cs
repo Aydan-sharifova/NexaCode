@@ -31,6 +31,7 @@ public sealed class AiUsageRecordConfiguration : IEntityTypeConfiguration<AiUsag
 {
     public void Configure(EntityTypeBuilder<AiUsageRecord> builder)
     {
+        builder.HasQueryFilter(x => !x.Conversation.IsDeleted && !x.Conversation.Project.IsDeleted);
         builder.Property(x => x.Provider).HasMaxLength(80).IsRequired();
         builder.Property(x => x.Model).HasMaxLength(120).IsRequired();
         builder.Property(x => x.EstimatedCost).HasPrecision(18, 8);

@@ -8,6 +8,7 @@ public sealed class CodingSessionConfiguration : IEntityTypeConfiguration<Coding
 {
     public void Configure(EntityTypeBuilder<CodingSession> builder)
     {
+        builder.HasQueryFilter(x => !x.File.IsDeleted && !x.File.Project.IsDeleted);
         builder.HasKey(x => x.Id);
         builder.HasIndex(x => new { x.UserId, x.StartAt });
         builder.HasIndex(x => new { x.ProjectId, x.StartAt });

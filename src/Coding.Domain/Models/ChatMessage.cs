@@ -9,5 +9,7 @@ public sealed class ChatMessage : Base
     public string Content { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
+    public DateTime? EditedAtUtc { get; set; }
     public ICollection<MessageReadReceipt> ReadReceipts { get; set; } = [];
+    public ICollection<ChatAttachment> Attachments { get; set; } = [];
 }

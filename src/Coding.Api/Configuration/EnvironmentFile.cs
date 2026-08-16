@@ -27,6 +27,17 @@ internal static class EnvironmentFile
         MapAlias("JWT_ISSUER", "Jwt__Issuer");
         MapAlias("JWT_AUDIENCE", "Jwt__Audience");
         MapAlias("JWT_KEY", "Jwt__Key");
+        MapAlias("SMTP_ENABLED", "Smtp__Enabled");
+        MapAlias("SMTP_HOST", "Smtp__Host");
+        MapAlias("SMTP_PORT", "Smtp__Port");
+        MapAlias("SMTP_USE_SSL", "Smtp__UseSsl");
+        MapAlias("SMTP_USE_STARTTLS", "Smtp__UseStartTls");
+        MapAlias("SMTP_CHECK_CERTIFICATE_REVOCATION", "Smtp__CheckCertificateRevocation");
+        MapAlias("SMTP_USERNAME", "Smtp__Username");
+        MapAlias("SMTP_PASSWORD", "Smtp__Password");
+        MapAlias("SMTP_FROM_EMAIL", "Smtp__FromEmail");
+        MapAlias("SMTP_FROM_NAME", "Smtp__FromName");
+        MapAlias("FRONTEND_ORIGIN", "Smtp__ClientBaseUrl");
     }
 
     private static void MapAlias(string source, string destination)

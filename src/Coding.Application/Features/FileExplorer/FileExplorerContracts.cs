@@ -22,6 +22,7 @@ public sealed record RestoreFileVersionCommand(Guid NodeId, Guid VersionId) : IR
 public sealed record GetProjectFileTreeQuery(Guid ProjectId) : IRequest<IReadOnlyList<WorkspaceNodeDto>>;
 public sealed record GetFolderChildrenQuery(Guid ProjectId, Guid? ParentId) : IRequest<IReadOnlyList<WorkspaceNodeDto>>;
 public sealed record GetFileContentQuery(Guid NodeId) : IRequest<FileContentDto>;
+public sealed record GetNodeDetailsQuery(Guid NodeId) : IRequest<WorkspaceNodeDto>;
 public sealed record GetFileVersionsQuery(Guid NodeId) : IRequest<IReadOnlyList<FileVersionDto>>;
 public sealed record GetFileVersionByIdQuery(Guid NodeId, Guid VersionId) : IRequest<FileVersionDetails>;
 public sealed record CompareFileVersionsQuery(Guid NodeId, Guid LeftId, Guid RightId) : IRequest<VersionComparison>;

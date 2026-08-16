@@ -33,7 +33,9 @@ public sealed class ChatMessageConfiguration : IEntityTypeConfiguration<ChatMess
 {
     public void Configure(EntityTypeBuilder<ChatMessage> builder)
     {
-        builder.HasQueryFilter(item => !item.IsDeleted && !item.Conversation.IsDeleted);
+        // Keep soft-deleted messages in the timeline so clients can render the
+        // intentional "Message deleted" placeholder without exposing content.
+        builder.HasQueryFilter(item => !item.Conversation.IsDeleted);
         builder.Property(item => item.Content).HasMaxLength(8000).IsRequired();
         builder.HasIndex(item => new { item.ConversationId, item.CreatedAt, item.ID });
         builder.HasOne(item => item.Conversation).WithMany(item => item.ChatMessages).HasForeignKey(item => item.ConversationId).OnDelete(DeleteBehavior.Cascade);
@@ -45,9 +47,24 @@ public sealed class MessageReadReceiptConfiguration : IEntityTypeConfiguration<M
 {
     public void Configure(EntityTypeBuilder<MessageReadReceipt> builder)
     {
+        builder.HasQueryFilter(item => !item.Message.Conversation.IsDeleted);
         builder.HasKey(item => new { item.MessageId, item.UserId });
         builder.HasOne(item => item.Message).WithMany(item => item.ReadReceipts).HasForeignKey(item => item.MessageId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public sealed class ChatAttachmentConfiguration : IEntityTypeConfiguration<ChatAttachment>
+{
+    public void Configure(EntityTypeBuilder<ChatAttachment> builder)
+    {
+        builder.HasQueryFilter(item => !item.IsDeleted && !item.Message.Conversation.IsDeleted);
+        builder.Property(item => item.FileName).HasMaxLength(255).IsRequired();
+        builder.Property(item => item.StoredName).HasMaxLength(80).IsRequired();
+        builder.Property(item => item.ContentType).HasMaxLength(120).IsRequired();
+        builder.HasIndex(item => item.MessageId);
+        builder.HasOne(item => item.Message).WithMany(item => item.Attachments).HasForeignKey(item => item.MessageId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(item => item.UploadedBy).WithMany().HasForeignKey(item => item.UploadedById).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

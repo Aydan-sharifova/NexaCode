@@ -14,6 +14,8 @@ export class SignalRYjsProvider {
   private seen = new Set<string>();
   private pending = new Map<string, DocumentUpdateMessage>();
   private listeners = new Set<(status: SyncStatus, pending: number) => void>();
+  private retryTimer?: ReturnType<typeof setTimeout>;
+  private retryDelay = 1_000;
   status: SyncStatus = "connecting";
 
   constructor(readonly projectId: string, readonly fileId: string, readonly clientId: string, readonly doc: Y.Doc, readonly awareness: Awareness) {
@@ -40,6 +42,8 @@ export class SignalRYjsProvider {
   async destroy() {
     if (this.disposed) return;
     this.disposed = true;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = undefined;
     this.doc.off("update", this.onDocumentUpdate);
     this.awareness.off("update", this.onAwarenessUpdate);
     const connection = this.connection; this.connection = undefined;
@@ -54,15 +58,22 @@ export class SignalRYjsProvider {
     const connection = this.connection;
     if (!connection || connection.state !== HubConnectionState.Connected || this.disposed) return;
     this.setStatus("synchronizing");
-    const state = await connection.invoke<CollaborativeState>("JoinCollaborativeFile", this.projectId, this.fileId, encodeBinary(Y.encodeStateVector(this.doc)));
-    if (state.snapshot) Y.applyUpdate(this.doc, decodeBinary(state.snapshot), remoteOrigin);
-    for (const update of state.updates) this.applyDocument(update);
-    for (const message of [...this.pending.values()]) await this.send(message);
-    const recoveryUpdate = Y.encodeStateAsUpdate(this.doc);
-    await this.send({ projectId: this.projectId, fileId: this.fileId, clientId: this.clientId, updateId: await deterministicUpdateId(recoveryUpdate), encodedUpdate: encodeBinary(recoveryUpdate), updateType: "state", createdAt: new Date().toISOString(), plainContent: this.doc.getText("monaco").toString() });
-    const awareness = encodeAwarenessUpdate(this.awareness, [this.doc.clientID]);
-    await connection.send("SendAwarenessUpdate", { projectId: this.projectId, fileId: this.fileId, clientId: this.clientId, updateId: crypto.randomUUID(), encodedUpdate: encodeBinary(awareness), updateType: "awareness", createdAt: new Date().toISOString() });
-    this.setStatus(this.pending.size ? "synchronizing" : "synchronized");
+    try {
+      const state = await connection.invoke<CollaborativeState>("JoinCollaborativeFile", this.projectId, this.fileId, encodeBinary(Y.encodeStateVector(this.doc)));
+      if (state.snapshot) Y.applyUpdate(this.doc, decodeBinary(state.snapshot), remoteOrigin);
+      for (const update of state.updates) this.applyDocument(update);
+      for (const message of [...this.pending.values()]) await this.send(message);
+      const recoveryUpdate = Y.encodeStateAsUpdate(this.doc);
+      await this.send({ projectId: this.projectId, fileId: this.fileId, clientId: this.clientId, updateId: await deterministicUpdateId(recoveryUpdate), encodedUpdate: encodeBinary(recoveryUpdate), updateType: "state", createdAt: new Date().toISOString(), plainContent: this.doc.getText("monaco").toString() });
+      const awareness = encodeAwarenessUpdate(this.awareness, [this.doc.clientID]);
+      await connection.send("SendAwarenessUpdate", { projectId: this.projectId, fileId: this.fileId, clientId: this.clientId, updateId: crypto.randomUUID(), encodedUpdate: encodeBinary(awareness), updateType: "awareness", createdAt: new Date().toISOString() });
+      this.retryDelay = 1_000;
+      this.setStatus(this.pending.size ? "synchronizing" : "synchronized");
+      if (this.pending.size) this.scheduleRetry();
+    } catch {
+      this.setStatus(this.pending.size ? "offline" : "failed");
+      this.scheduleRetry();
+    }
   };
 
   private onDocumentUpdate = (update: Uint8Array, origin: unknown) => {
@@ -74,7 +85,7 @@ export class SignalRYjsProvider {
     const connection = this.connection;
     if (!connection || connection.state !== HubConnectionState.Connected) { this.setStatus("offline"); return; }
     try { await connection.invoke("SendDocumentUpdate", message); this.pending.delete(message.updateId); this.seen.add(message.updateId); this.setStatus(this.pending.size ? "synchronizing" : "synchronized"); }
-    catch { this.setStatus("offline"); }
+    catch { this.setStatus("offline"); this.scheduleRetry(); }
   };
   private receiveDocument = (message: DocumentUpdateMessage) => this.applyDocument(message);
   private receiveReset = (message: DocumentUpdateMessage) => { this.seen.clear(); this.applyDocument(message); };
@@ -87,6 +98,16 @@ export class SignalRYjsProvider {
   private receiveAwareness = (message: AwarenessUpdateMessage) => { if (message.fileId === this.fileId && message.clientId !== this.clientId) applyAwarenessUpdate(this.awareness, decodeBinary(message.encodedUpdate), remoteOrigin); };
   private setStatus(status: SyncStatus) { this.status = status; this.emit(); }
   private emit() { for (const listener of this.listeners) listener(this.status, this.pending.size); }
+  private scheduleRetry() {
+    if (this.disposed || this.retryTimer) return;
+    const delay = this.retryDelay;
+    this.retryDelay = Math.min(this.retryDelay * 2, 10_000);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = undefined;
+      if (this.disposed) return;
+      if (this.connection?.state === HubConnectionState.Connected) void this.synchronize();
+    }, delay);
+  }
 }
 
 export { remoteOrigin };

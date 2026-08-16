@@ -14,6 +14,7 @@ using Coding.Infrastructure.Authentication;
 using Coding.Services.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Coding.Application.Features.Repositories;
 
 namespace Coding.Infrastructure.Projects;
 
@@ -36,20 +37,24 @@ internal static class ProjectAccess
     public static string HashToken(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }
 
-public sealed class CreateProjectHandler(AppDbContext context, ICurrentUser currentUser) : IRequestHandler<CreateProjectCommand, ProjectDetails>
+public sealed class CreateProjectHandler(AppDbContext context, ICurrentUser currentUser, IGitRepositoryService git) : IRequestHandler<CreateProjectCommand, ProjectDetails>
 {
     public async Task<ProjectDetails> Handle(CreateProjectCommand request, CancellationToken cancellationToken)
     {
+        var language = request.DefaultLanguage.Trim();
+        if (!await context.ProgrammingLanguages.AnyAsync(item => item.IsActive && item.Name == language, cancellationToken))
+            throw new InvalidOperationException("Select an active programming language from the catalog.");
         var strategy = context.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
         {
             await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
             var now = DateTime.UtcNow;
-            var project = new Project { ID = Guid.NewGuid(), Name = request.Name.Trim(), Description = request.Description?.Trim(), DefaultLanguage = request.DefaultLanguage.Trim(), IsPublic = request.IsPublic, OwnerId = currentUser.UserId, CreatedAt = now, CreatAt = now };
+            var project = new Project { ID = Guid.NewGuid(), Name = request.Name.Trim(), Description = request.Description?.Trim(), DefaultLanguage = language, IsPublic = request.IsPublic, OwnerId = currentUser.UserId, CreatedAt = now, CreatAt = now };
             project.Members.Add(new ProjectMember { ID = Guid.NewGuid(), Project = project, UserId = currentUser.UserId, Role = ProjectRole.Owner, JoinedAt = now, CreatAt = now });
             context.Conversations.Add(new Conversation { ID = Guid.NewGuid(), Type = ConversationType.ProjectChannel, Project = project, Name = project.Name, CreatedAt = now, UpdatedAt = now, Participants = [new ConversationParticipant { ID = Guid.NewGuid(), UserId = currentUser.UserId, JoinedAt = now }] });
             context.Projects.Add(project);
             await context.SaveChangesAsync(cancellationToken);
+            await git.InitializeAsync(project.ID, "main", cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return new ProjectDetails(project.ID, project.Name, project.Description, project.DefaultLanguage, project.IsPublic, project.OwnerId, ProjectRole.Owner, project.CreatedAt, project.UpdateAt);
         });
@@ -63,6 +68,8 @@ public sealed class UpdateProjectHandler(AppDbContext context, ICurrentUser curr
         var role = await ProjectAccess.RequireMemberAsync(context, request.ProjectId, currentUser.UserId, cancellationToken);
         ProjectAccess.RequireManager(role);
         var project = await context.Projects.SingleOrDefaultAsync(item => item.ID == request.ProjectId, cancellationToken) ?? throw new NotFoundException("Project not found.");
+        if (!await context.ProgrammingLanguages.AnyAsync(item => item.IsActive && item.Name == request.DefaultLanguage.Trim(), cancellationToken))
+            throw new InvalidOperationException("Select an active programming language from the catalog.");
         project.Name = request.Name.Trim(); project.Description = request.Description?.Trim(); project.DefaultLanguage = request.DefaultLanguage.Trim(); project.IsPublic = request.IsPublic; project.UpdateAt = DateTime.UtcNow;
         var channel = await context.Conversations.SingleOrDefaultAsync(item => item.ProjectId == request.ProjectId, cancellationToken);
         if (channel is not null) { channel.Name = project.Name; channel.UpdatedAt = project.UpdateAt.Value; }

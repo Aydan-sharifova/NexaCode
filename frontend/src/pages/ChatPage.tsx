@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatApi } from "../features/chat/api";
-import type { Conversation } from "../features/chat/types";
+import type { ChatMessage, Conversation } from "../features/chat/types";
 import { signalRService } from "../features/collaboration/signalRService";
 import { useAuth } from "../hooks/useAuth";
 import { usePageTranslation } from "../hooks/usePageTranslation";
@@ -15,7 +15,7 @@ import { useSearchParams } from "react-router-dom";
 export function ChatPage() {
   const { pt } = usePageTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const client = useQueryClient(); const { session } = useAuth(); const { show } = useToast(); const [active, setActive] = useState<string>(); const [content, setContent] = useState(""); const [otherUserId, setOtherUserId] = useState(""); const [typingIds, setTypingIds] = useState<string[]>([]); const [aiOpen, setAiOpen] = useState(false); const typingTimer = useRef<number | undefined>(undefined);
+  const client = useQueryClient(); const { session } = useAuth(); const { show } = useToast(); const [active, setActive] = useState<string>(); const [content, setContent] = useState(""); const [editing, setEditing] = useState<ChatMessage>(); const [otherUserId, setOtherUserId] = useState(""); const [typingIds, setTypingIds] = useState<string[]>([]); const [aiOpen, setAiOpen] = useState(false); const typingTimer = useRef<number | undefined>(undefined); const fileInput = useRef<HTMLInputElement>(null);
   const conversations = useQuery({ queryKey: conversationsQueryKey, queryFn: chatApi.conversations, refetchInterval: 15_000 });
   useEffect(() => {
     if (!conversations.data?.length) return;
@@ -50,6 +50,12 @@ export function ChatPage() {
     },
     onError: (error) => show(error instanceof Error ? error.message : "Unable to start the conversation.", "error"),
   });
+  const refreshChat = () => { void messages.refetch(); void conversations.refetch(); };
+  const editMessage = useMutation({ mutationFn: () => chatApi.edit(editing!.id, content), onSuccess: () => { setEditing(undefined); setContent(""); refreshChat(); show("Message updated."); }, onError: (error) => show(error.message, "error") });
+  const removeMessage = useMutation({ mutationFn: chatApi.remove, onSuccess: () => { refreshChat(); show("Message deleted."); }, onError: (error) => show(error.message, "error") });
+  const removeConversation = useMutation({ mutationFn: chatApi.deleteConversation, onSuccess: () => { setActive(undefined); void conversations.refetch(); show("Conversation deleted."); }, onError: (error) => show(error.message, "error") });
+  const upload = useMutation({ mutationFn: (file: File) => chatApi.upload(active!, file, content), onSuccess: () => { setContent(""); refreshChat(); show("File sent."); }, onError: (error) => show(error.message, "error") });
+  const downloadAttachment = async (id: string, fileName: string) => { try { const blob = await chatApi.attachment(id); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = fileName; anchor.click(); URL.revokeObjectURL(url); } catch (error) { show(error instanceof Error ? error.message : "Download failed.", "error"); } };
   const startDirect = () => {
     if (!isValidPublicUserId(otherUserId)) {
       show("Paste the complete user ID from the other user's profile.", "error");
@@ -148,6 +154,7 @@ export function ChatPage() {
                   ✦ Ask AI
                 </button>
               )}
+              {selected.type === "Direct" && <button className="chat-delete-conversation" onClick={() => { if (window.confirm(`Delete conversation with ${selected.name}?`)) removeConversation.mutate(selected.id); }}>Delete chat</button>}
             </header>
             <div className="chat-messages">
               {messages.isError && (
@@ -161,8 +168,9 @@ export function ChatPage() {
                 <article key={message.id} className={message.sender.id === session?.user.id ? "mine" : ""}>
                   <div className="chat-message-avatar">{message.sender.displayName.slice(0, 1)}</div>
                   <div>
-                    <header><b>{message.sender.displayName}</b><time>{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></header>
+                    <header><b>{message.sender.displayName}</b><time>{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{message.editedAt ? " · edited" : ""}</time>{message.sender.id === session?.user.id && !message.isDeleted && <span className="chat-message-actions"><button onClick={() => { setEditing(message); setContent(message.content); }}>Edit</button><button onClick={() => { if (window.confirm("Delete this message?")) removeMessage.mutate(message.id); }}>Delete</button></span>}</header>
                     <p>{message.content}</p>
+                    {message.attachments?.map((attachment) => <button className="chat-attachment" key={attachment.id} onClick={() => void downloadAttachment(attachment.id, attachment.fileName)}><span>📎 {attachment.fileName}</span><small>{formatFileSize(attachment.size)} · Download</small></button>)}
                     {message.sender.id === session?.user.id && <small>{message.readByUserIds.length > 1 ? pt("read") : pt("sent")}</small>}
                   </div>
                 </article>
@@ -170,6 +178,9 @@ export function ChatPage() {
             </div>
             <div className="typing-line" role="status">{typingIds.length ? `${typingIds.length} ${typingIds.length === 1 ? pt("typingOne") : pt("typingMany")}` : ""}</div>
             <footer>
+              <input ref={fileInput} hidden type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
+              <button className="chat-attach-button" aria-label="Attach file" disabled={upload.isPending} onClick={() => fileInput.current?.click()}>＋</button>
+              {editing && <button className="chat-cancel-edit" onClick={() => { setEditing(undefined); setContent(""); }}>Cancel edit</button>}
               <textarea
                 aria-label={`${pt("send")}: ${selected.name}`}
                 value={content}
@@ -182,12 +193,12 @@ export function ChatPage() {
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
-                    if (content.trim() && !send.isPending) send.mutate();
+                    if (content.trim() && !send.isPending) editing ? editMessage.mutate() : send.mutate();
                   }
                 }}
                 placeholder={`${pt("send")}: ${selected.name}`}
               />
-              <button disabled={!content.trim() || send.isPending} onClick={() => send.mutate()}>{pt("send")}</button>
+              <button disabled={!content.trim() || send.isPending || editMessage.isPending} onClick={() => editing ? editMessage.mutate() : send.mutate()}>{editing ? "Save" : pt("send")}</button>
             </footer>
             {selected.projectId && (
               <Dialog
@@ -225,6 +236,8 @@ export function ChatPage() {
     </main>
   );
 }
+
+function formatFileSize(size: number) { return size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`; }
 
 function ConversationButton({ item, active, emptyLabel, onClick }: { item: Conversation; active: boolean; emptyLabel:string; onClick: () => void }) {
   return <button className={active ? "active" : ""} onClick={onClick}><span className="chat-avatar">{item.type === "ProjectChannel" ? "#" : item.name.slice(0, 1)}</span><div><strong>{item.name}</strong><small>{item.lastMessage?.content ?? emptyLabel}</small></div>{item.unreadCount > 0 && <b>{item.unreadCount}</b>}</button>;

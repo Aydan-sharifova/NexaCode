@@ -1,4 +1,5 @@
 using Coding.Services.Interfaces;
+using Coding.Exceptions;
 using Microsoft.Extensions.Logging;
 
 namespace Coding.Infrastructure.Authentication;
@@ -19,7 +20,7 @@ public sealed class LoggingEmailSender : IEmailSender
         CancellationToken cancellationToken = default)
     {
         logger.LogWarning("Email delivery provider is disabled; an email was not delivered.");
-        return Task.CompletedTask;
+        return Task.FromException(CreateDeliveryException());
     }
 
     public Task SendEmailVerificationAsync(
@@ -28,7 +29,7 @@ public sealed class LoggingEmailSender : IEmailSender
         CancellationToken cancellationToken)
     {
         logger.LogWarning("Email delivery provider is disabled; a verification email was not delivered.");
-        return Task.CompletedTask;
+        return Task.FromException(CreateDeliveryException());
     }
 
     public Task SendPasswordResetAsync(
@@ -37,6 +38,11 @@ public sealed class LoggingEmailSender : IEmailSender
         CancellationToken cancellationToken)
     {
         logger.LogWarning("Email delivery provider is disabled; a password reset email was not delivered.");
-        return Task.CompletedTask;
+        return Task.FromException(CreateDeliveryException());
     }
+
+    private static EmailDeliveryException CreateDeliveryException() =>
+        new(
+            "Email delivery is not configured.",
+            new InvalidOperationException("Enable and configure SMTP before sending account emails."));
 }

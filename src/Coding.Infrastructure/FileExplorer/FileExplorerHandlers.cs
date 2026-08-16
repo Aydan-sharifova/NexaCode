@@ -109,6 +109,9 @@ public sealed class GetFolderChildrenHandler(AppDbContext db, ICurrentUser user)
 public sealed class GetFileContentHandler(AppDbContext db, ICurrentUser user) : IRequestHandler<GetFileContentQuery, FileContentDto>
 { public async Task<FileContentDto> Handle(GetFileContentQuery r, CancellationToken ct) { var n = await NodeOperations.NodeAsync(db, r.NodeId, ct); await ProjectAccess.RequireMemberAsync(db, n.ProjectId, user.UserId, ct); var c = await db.FileContents.AsNoTracking().SingleOrDefaultAsync(x => x.NodeId == n.ID, ct) ?? throw new NotFoundException("File content not found."); return new(n.ID, await NodeOperations.PathAsync(db, n, ct), c.Content, c.ContentHash, c.ConcurrencyToken, c.VersionNumber, c.UpdatedAt); } }
 
+public sealed class GetNodeDetailsHandler(AppDbContext db, ICurrentUser user) : IRequestHandler<GetNodeDetailsQuery, WorkspaceNodeDto>
+{ public async Task<WorkspaceNodeDto> Handle(GetNodeDetailsQuery r, CancellationToken ct) { var n = await NodeOperations.NodeAsync(db, r.NodeId, ct); await ProjectAccess.RequireMemberAsync(db, n.ProjectId, user.UserId, ct); return await NodeOperations.MapAsync(db, n, ct); } }
+
 public sealed class GetFileVersionsHandler(AppDbContext db, ICurrentUser user) : IRequestHandler<GetFileVersionsQuery, IReadOnlyList<FileVersionDto>>
 { public async Task<IReadOnlyList<FileVersionDto>> Handle(GetFileVersionsQuery r, CancellationToken ct) { var n = await NodeOperations.NodeAsync(db, r.NodeId, ct); await ProjectAccess.RequireMemberAsync(db, n.ProjectId, user.UserId, ct); return await db.FileVersions.AsNoTracking().Where(x => x.NodeId == r.NodeId).OrderByDescending(x => x.VersionNumber).Select(x => new FileVersionDto(x.ID, x.NodeId, x.VersionNumber, x.ContentHash, x.CreatedById, x.CreatedBy.FirstName + " " + x.CreatedBy.LastName, x.CreatAt)).ToListAsync(ct); } }
 

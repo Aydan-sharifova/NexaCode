@@ -33,6 +33,7 @@ import { useCollaborativeDocument } from "../features/collaboration/hooks/useCol
 import { CollaborationStatus } from "../features/collaboration/components/CollaborationStatus";
 import { RemoteUserList } from "../features/collaboration/components/RemoteUserList";
 import { crdtDocumentManager } from "../features/collaboration/crdt/CrdtDocumentManager";
+import { repositoryApi } from "../features/repository/api";
 
 function MonacoPane({
   projectId,
@@ -320,6 +321,13 @@ export function FileExplorerPage() {
 
   const [aiSuggestion, setAiSuggestion] =
     useState<string>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<string[]>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const [leftMode, setLeftMode] = useState<"explorer" | "source">("explorer");
+  const [commitMessage, setCommitMessage] = useState("");
+  const repositoryStatus = useQuery({ queryKey: ["repository-status", projectId], queryFn: () => repositoryApi.status(projectId), enabled: Boolean(projectId) });
 
   const handleSelectionChange = useCallback(
     (value: string) => {
@@ -411,6 +419,24 @@ export function FileExplorerPage() {
     selectedNode?.nodeType === "Folder"
       ? selectedNode.id
       : selectedNode?.parentId;
+
+  const uploadFiles = async (selected: FileList | File[]) => {
+    const files = Array.from(selected);
+    if (!files.length) return;
+    setUploading(files.map((file) => file.name));
+    try {
+      await fileExplorerApi.upload(projectId, createParentId, files);
+      await reloadTree();
+      await repositoryStatus.refetch();
+      show(`${files.length} file${files.length === 1 ? "" : "s"} uploaded to ${selectedNode?.nodeType === "Folder" ? selectedNode.path : "/"}.`);
+    } catch (error) {
+      show(error instanceof Error ? error.message : "Upload failed.", "error");
+    } finally {
+      setUploading([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  };
 
   const createNode = async () => {
     if (!create || !newName.trim()) {
@@ -648,6 +674,14 @@ export function FileExplorerPage() {
             ＋ Folder
           </button>
 
+          <button aria-label="Upload files" title="Upload files" onClick={() => fileInputRef.current?.click()}>
+            ↑ File
+          </button>
+
+          <button aria-label="Upload image" title="Upload image" onClick={() => imageInputRef.current?.click()}>
+            ▧ Image
+          </button>
+
           <button
             className={
               rightMode === "ai" &&
@@ -698,20 +732,39 @@ export function FileExplorerPage() {
           }`,
         }}
       >
-        <aside className="explorer-panel">
+        <aside className={`explorer-panel ${dragActive ? "drop-active" : ""}`}
+          onDragEnter={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); setDragActive(true); } }}
+          onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
+          onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragActive(false); }}
+          onDrop={(event) => { if (!event.dataTransfer.files.length) return; event.preventDefault(); event.stopPropagation(); setDragActive(false); void uploadFiles(event.dataTransfer.files); }}>
           <header>
-            <span>EXPLORER</span>
-
-            <button
-              onClick={() =>
-                reloadTree()
-              }
-            >
-              ↻
-            </button>
+            <div className="workspace-left-tabs">
+              <button className={leftMode === "explorer" ? "active" : ""} onClick={() => setLeftMode("explorer")}>EXPLORER</button>
+              <button className={leftMode === "source" ? "active" : ""} onClick={() => setLeftMode("source")}>SOURCE {repositoryStatus.data?.files.length ? `(${repositoryStatus.data.files.length})` : ""}</button>
+            </div>
+            <div className="explorer-actions">
+              <button aria-label="New file" title="New file" onClick={() => actions.onCreate("file", createParentId)}>＋</button>
+              <button aria-label="New folder" title="New folder" onClick={() => actions.onCreate("folder", createParentId)}>▱</button>
+              <button aria-label="Upload files" title="Upload files" onClick={() => fileInputRef.current?.click()}>↑</button>
+              <button aria-label="Upload image" title="Upload image" onClick={() => imageInputRef.current?.click()}>▧</button>
+              <button aria-label="Refresh explorer" title="Refresh explorer" onClick={() => reloadTree()}>↻</button>
+            </div>
           </header>
 
-          {tree.isLoading ? (
+          <input ref={fileInputRef} className="workspace-file-input" type="file" multiple onChange={(event) => event.target.files && void uploadFiles(event.target.files)} />
+          <input ref={imageInputRef} className="workspace-file-input" type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => event.target.files && void uploadFiles(event.target.files)} />
+          {leftMode === "explorer" && <div className="upload-destination">Upload to: {selectedNode?.nodeType === "Folder" ? selectedNode.path : "/"}</div>}
+          {uploading.length > 0 && <div className="upload-progress" role="status"><strong>Uploading…</strong>{uploading.map((name) => <span key={name}>{name}</span>)}</div>}
+          {dragActive && <div className="file-drop-overlay">Drop files to upload</div>}
+
+          {leftMode === "source" ? (
+            <div className="source-control-panel">
+              <strong>⎇ {repositoryStatus.data?.currentBranch || "main"}</strong>
+              <textarea aria-label="Commit message" placeholder="Commit message" value={commitMessage} onChange={(event) => setCommitMessage(event.target.value)} />
+              <button disabled={!commitMessage.trim() || repositoryStatus.data?.isClean} onClick={async () => { try { await repositoryApi.commit(projectId, commitMessage.trim()); setCommitMessage(""); await repositoryStatus.refetch(); show("Commit created."); } catch (error) { show(error instanceof Error ? error.message : "Commit failed.", "error"); } }}>Commit</button>
+              <div className="source-changes">{repositoryStatus.isLoading ? <span>Loading Git status…</span> : repositoryStatus.data?.files.length ? repositoryStatus.data.files.map((file) => <div key={file.path}><code>{file.indexStatus}{file.workingTreeStatus}</code><span>{file.path}</span></div>) : <span>No changes</span>}</div>
+            </div>
+          ) : tree.isLoading ? (
             <div className="tree-empty">
               Loading files…
             </div>
@@ -795,7 +848,17 @@ export function FileExplorerPage() {
           </div>
 
           <div className="monaco-host">
-            {tabs.activeTab ? (
+            {tabs.activeTab?.viewer === "image" ? (
+              <div className="image-viewer">
+                <div className="image-viewer-toolbar">
+                  <strong>{tabs.activeTab.name}</strong>
+                  <button onClick={() => void navigator.clipboard.writeText(tabs.activeTab!.path)}>Copy path</button>
+                  <a href={tabs.activeTab.objectUrl} download={tabs.activeTab.name}>Download</a>
+                </div>
+                <img src={tabs.activeTab.objectUrl} alt={tabs.activeTab.name} />
+                <small>{tabs.activeTab.path}</small>
+              </div>
+            ) : tabs.activeTab ? (
               <MonacoPane
                 projectId={projectId}
                 tab={tabs.activeTab}
@@ -815,9 +878,13 @@ export function FileExplorerPage() {
                 </h2>
 
                 <p>
-                  Double-click a file
-                  or press Ctrl/Cmd+P.
+                  Open a file, upload source code, or add an image.
                 </p>
+                <div className="editor-empty-actions">
+                  <button onClick={() => actions.onCreate("file", createParentId)}>New File</button>
+                  <button onClick={() => fileInputRef.current?.click()}>Upload File</button>
+                  <button onClick={() => imageInputRef.current?.click()}>Upload Image</button>
+                </div>
               </div>
             )}
           </div>

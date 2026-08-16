@@ -8,8 +8,7 @@ namespace Coding.IntegrationTests;
 
 public sealed class PostgreSqlContainerTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
+    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:16-alpine")
         .WithDatabase("coding_tests")
         .WithUsername("coding")
         .WithPassword("coding-tests-only")

@@ -82,7 +82,8 @@ public static class ApiServiceCollectionExtensions
             options.KeepAliveInterval = TimeSpan.FromSeconds(15);
         });
         var signalRRedis = configuration.GetConnectionString("Redis");
-        if (!string.IsNullOrWhiteSpace(signalRRedis))
+        if (configuration.GetValue("SignalR:UseRedisBackplane", false) &&
+            !string.IsNullOrWhiteSpace(signalRRedis))
             signalR.AddStackExchangeRedis(signalRRedis);
         services.AddSwaggerDocumentation();
         services.AddRateLimiter(options =>

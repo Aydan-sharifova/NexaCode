@@ -65,3 +65,21 @@ public sealed class ProjectAiRequestConfiguration : IEntityTypeConfiguration<AIR
 {
     public void Configure(EntityTypeBuilder<AIRequest> builder) => builder.HasQueryFilter(request => !request.Project.IsDeleted && !request.IsDeleted);
 }
+
+public sealed class ProjectAiResponseConfiguration : IEntityTypeConfiguration<AIResponse>
+{
+    public void Configure(EntityTypeBuilder<AIResponse> builder) =>
+        builder.HasQueryFilter(response => !response.IsDeleted && !response.AIRequest.IsDeleted && !response.AIRequest.Project.IsDeleted);
+}
+
+public sealed class ProjectFileItemConfiguration : IEntityTypeConfiguration<FileItem>
+{
+    public void Configure(EntityTypeBuilder<FileItem> builder) =>
+        builder.HasQueryFilter(file => !file.IsDeleted && !file.Folder.IsDeleted && !file.Folder.Project.IsDeleted);
+}
+
+public sealed class ProjectCodeHistoryConfiguration : IEntityTypeConfiguration<CodeHistory>
+{
+    public void Configure(EntityTypeBuilder<CodeHistory> builder) =>
+        builder.HasQueryFilter(history => !history.IsDeleted && !history.FileItem.IsDeleted && !history.FileItem.Folder.IsDeleted && !history.FileItem.Folder.Project.IsDeleted);
+}

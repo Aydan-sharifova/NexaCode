@@ -42,9 +42,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const logout = useCallback(async () => {
-    await signalRService.disconnect();
-    await authService.logout();
-    setSession(null);
+    try {
+      await signalRService.disconnect();
+    } finally {
+      try {
+        await authService.logout();
+      } finally {
+        setSession(null);
+      }
+    }
   }, []);
 
   const value = useMemo(

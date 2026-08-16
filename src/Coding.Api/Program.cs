@@ -8,14 +8,33 @@ using Coding.Api.Collaboration;
 using Coding.Api.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()
-    .CreateBootstrapLogger();
-
 try
 {
     EnvironmentFile.LoadForDevelopment(Directory.GetCurrentDirectory());
-    var builder = WebApplication.CreateBuilder(args);
+    var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+        ?? Environments.Production;
+    var workingDirectory = Directory.GetCurrentDirectory();
+    var repositoryApiDirectory = Path.Combine(workingDirectory, "src", "Coding.Api");
+    var contentRoot = File.Exists(Path.Combine(workingDirectory, "appsettings.json"))
+        ? workingDirectory
+        : File.Exists(Path.Combine(repositoryApiDirectory, "appsettings.json"))
+            ? repositoryApiDirectory
+            : AppContext.BaseDirectory;
+    var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions
+    {
+        Args = args,
+        ApplicationName = typeof(Program).Assembly.FullName,
+        ContentRootPath = contentRoot,
+        EnvironmentName = environmentName
+    });
+    builder.Configuration
+        .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+        .AddJsonFile($"appsettings.{environmentName}.json", optional: true, reloadOnChange: false)
+        .AddEnvironmentVariables()
+        .AddCommandLine(args);
+    builder.WebHost
+        .UseKestrel()
+        .UseUrls(Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://localhost:5192");
 
     builder.Host.UseSerilog((context, services, logger) => logger
         .ReadFrom.Configuration(context.Configuration)
@@ -117,15 +136,15 @@ try
     app.UseMiddleware<DemoModeGuardMiddleware>();
     app.UseAuthorization();
 
-    app.MapHealthChecks("/health");
+    app.MapHealthChecks("/health").AllowAnonymous();
     app.MapHealthChecks("/health/live", new HealthCheckOptions
     {
         Predicate = _ => false
-    });
+    }).AllowAnonymous();
     app.MapHealthChecks("/health/ready", new HealthCheckOptions
     {
         Predicate = registration => registration.Tags.Contains("ready")
-    });
+    }).AllowAnonymous();
     app.MapControllers();
     app.MapHub<CollaborationHub>("/hubs/collaboration");
 
@@ -133,6 +152,10 @@ try
     {
         app.Run();
     }
+}
+catch (HostAbortedException)
+{
+    // EF Core tooling intentionally aborts the temporary host after resolving services.
 }
 catch (Exception exception)
 {
@@ -144,8 +167,4 @@ finally
     Log.CloseAndFlush();
 }
 
-public partial class Program
-{
-    // EF CLI falls back to the explicit AppDbContextFactory without starting external services.
-    public static object CreateHostBuilder(string[] args) => new();
-}
+public partial class Program;

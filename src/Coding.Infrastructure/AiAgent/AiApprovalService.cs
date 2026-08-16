@@ -30,26 +30,51 @@ public sealed class AiApprovalService(
 
     public async Task<AiApprovalDetails> ApproveAsync(Guid approvalId, CancellationToken ct)
     {
-        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var approval = await LoadAuthorizedAsync(approvalId, ct);
-        var now = clock.GetUtcNow().UtcDateTime;
-        if (approval.Status != AiApprovalStatus.Pending) throw new ConflictException("This approval has already been resolved.");
-        if (approval.ExpiresAt <= now) { approval.Status = AiApprovalStatus.Expired; approval.RespondedAt = now; await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); throw new ConflictException("This approval has expired."); }
-        if (approval.ToolCall.ExecutedAt.HasValue) throw new ConflictException("This tool call has already executed.");
+        var strategy = db.Database.CreateExecutionStrategy();
+        var approval = await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var item = await LoadAuthorizedAsync(approvalId, ct);
+            var now = clock.GetUtcNow().UtcDateTime;
+            if (item.Status != AiApprovalStatus.Pending)
+                throw new ConflictException("This approval has already been resolved.");
+            if (item.ExpiresAt <= now)
+            {
+                item.Status = AiApprovalStatus.Expired;
+                item.RespondedAt = now;
+                await db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                throw new ConflictException("This approval has expired.");
+            }
+            if (item.ToolCall.ExecutedAt.HasValue)
+                throw new ConflictException("This tool call has already executed.");
+
+            using var pendingArguments = JsonDocument.Parse(item.ToolCall.ArgumentsJson);
+            var currentHash = AiSecretRedactionService.HashArguments(pendingArguments.RootElement);
+            if (!string.Equals(currentHash, item.ArgumentsHash, StringComparison.Ordinal))
+                throw new ConflictException("The tool arguments changed after approval was requested.");
+            var decision = await authorization.AuthorizeAsync(item.ToolCall, item.AgentRun, ct);
+            if (!decision.IsAllowed)
+                throw new ForbiddenException(decision.Reason ?? "Tool execution is no longer authorized.");
+            if (!registry.TryGet(item.ToolCall.ToolName, out _))
+                throw new ConflictException("The requested tool is no longer registered.");
+            var risk = AiRiskPolicy.Classify(item.ToolCall.ToolName, item.AgentRun);
+            if (risk == AiToolRiskLevel.Critical || !AiRiskPolicy.ModeAllowsRisk(item.AgentRun.Mode, risk))
+                throw new ForbiddenException("The requested tool risk is not allowed for this run.");
+
+            item.Status = AiApprovalStatus.ApprovedOnce;
+            item.RespondedAt = now;
+            item.ToolCall.ApprovalStatus = AiApprovalStatus.ApprovedOnce;
+            item.ToolCall.ApprovedAt = now;
+            item.AgentRun.Status = AiAgentStatus.Executing;
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return item;
+        });
+
+        if (!registry.TryGet(approval.ToolCall.ToolName, out var tool))
+            throw new ConflictException("The requested tool is no longer registered.");
         using var arguments = JsonDocument.Parse(approval.ToolCall.ArgumentsJson);
-        var currentHash = AiSecretRedactionService.HashArguments(arguments.RootElement);
-        if (!string.Equals(currentHash, approval.ArgumentsHash, StringComparison.Ordinal)) throw new ConflictException("The tool arguments changed after approval was requested.");
-        var decision = await authorization.AuthorizeAsync(approval.ToolCall, approval.AgentRun, ct);
-        if (!decision.IsAllowed) throw new ForbiddenException(decision.Reason ?? "Tool execution is no longer authorized.");
-        if (!registry.TryGet(approval.ToolCall.ToolName, out var tool)) throw new ConflictException("The requested tool is no longer registered.");
-        var risk = AiRiskPolicy.Classify(approval.ToolCall.ToolName, approval.AgentRun);
-        if (risk == AiToolRiskLevel.Critical || !AiRiskPolicy.ModeAllowsRisk(approval.AgentRun.Mode, risk)) throw new ForbiddenException("The requested tool risk is not allowed for this run.");
-        approval.Status = AiApprovalStatus.ApprovedOnce;
-        approval.RespondedAt = now;
-        approval.ToolCall.ApprovalStatus = AiApprovalStatus.ApprovedOnce;
-        approval.ToolCall.ApprovedAt = now;
-        approval.AgentRun.Status = AiAgentStatus.Executing;
-        await db.SaveChangesAsync(ct);
         try
         {
             var result = await tool.ExecuteAsync(arguments.RootElement, approval.AgentRun, ct);
@@ -57,7 +82,6 @@ public sealed class AiApprovalService(
             approval.ToolCall.ResultJson = result.Json;
             approval.ToolCall.ExecutedAt = clock.GetUtcNow().UtcDateTime;
             await db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
             await LogAsync(approval, "approved_and_executed", ct);
             return Map(approval);
         }
@@ -67,7 +91,6 @@ public sealed class AiApprovalService(
             approval.AgentRun.Status = AiAgentStatus.Failed;
             approval.AgentRun.ErrorMessage = "Approved tool execution failed.";
             await db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
             await LogAsync(approval, "execution_failed", ct);
             throw new ConflictException("The approved tool failed to execute.");
         }
@@ -75,13 +98,23 @@ public sealed class AiApprovalService(
 
     public async Task<AiApprovalDetails> RejectAsync(Guid approvalId, CancellationToken ct)
     {
-        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var approval = await LoadAuthorizedAsync(approvalId, ct);
-        if (approval.Status != AiApprovalStatus.Pending) throw new ConflictException("This approval has already been resolved.");
-        approval.Status = AiApprovalStatus.Rejected; approval.RespondedAt = clock.GetUtcNow().UtcDateTime;
-        approval.ToolCall.ApprovalStatus = AiApprovalStatus.Rejected;
-        approval.AgentRun.Status = AiAgentStatus.Cancelled; approval.AgentRun.CancelledAt = approval.RespondedAt;
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); await LogAsync(approval, "rejected", ct);
+        var strategy = db.Database.CreateExecutionStrategy();
+        var approval = await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var item = await LoadAuthorizedAsync(approvalId, ct);
+            if (item.Status != AiApprovalStatus.Pending)
+                throw new ConflictException("This approval has already been resolved.");
+            item.Status = AiApprovalStatus.Rejected;
+            item.RespondedAt = clock.GetUtcNow().UtcDateTime;
+            item.ToolCall.ApprovalStatus = AiApprovalStatus.Rejected;
+            item.AgentRun.Status = AiAgentStatus.Cancelled;
+            item.AgentRun.CancelledAt = item.RespondedAt;
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return item;
+        });
+        await LogAsync(approval, "rejected", ct);
         return Map(approval);
     }
 

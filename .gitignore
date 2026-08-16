@@ -15,6 +15,7 @@
 **/TestResults/
 **/playwright-report/
 **/test-results/
+*.tsbuildinfo
 backups/
 *.pem
 *.key
