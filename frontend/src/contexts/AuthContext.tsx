@@ -38,7 +38,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const register = useCallback(async (payload: RegisterPayload) => {
-    setSession(await authService.register(payload));
+    await authService.register(payload);
+    setSession(null);
   }, []);
 
   const logout = useCallback(async () => {
