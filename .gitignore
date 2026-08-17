@@ -15,6 +15,7 @@
 **/TestResults/
 **/playwright-report/
 **/test-results/
+src/Coding.Api/App_Data/
 *.tsbuildinfo
 backups/
 *.pem
