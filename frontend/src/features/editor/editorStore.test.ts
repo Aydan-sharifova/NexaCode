@@ -64,4 +64,18 @@ describe("editorStore", () => {
     expect(useEditorStore.getState().tabs.large).toBeUndefined();
     expect(useEditorStore.getState().closedTabHistory).toEqual(["large"]);
   });
+
+  it("preserves local edits while rebasing onto the latest server token", () => {
+    useEditorStore.getState().openTab(tab("one"));
+    useEditorStore.getState().updateContent("one", "local content");
+    useEditorStore.getState().markSaveConflict("one");
+    useEditorStore.getState().rebaseLocalChanges("one", "server content", "2".repeat(32));
+
+    const current = useEditorStore.getState().tabs.one;
+    expect(current.content).toBe("local content");
+    expect(current.savedContent).toBe("server content");
+    expect(current.concurrencyToken).toBe("2".repeat(32));
+    expect(current.suppressAutoSave).toBe(false);
+    expect(current.status).toBe("Unsaved");
+  });
 });

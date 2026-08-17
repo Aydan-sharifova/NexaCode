@@ -34,6 +34,8 @@ import { CollaborationStatus } from "../features/collaboration/components/Collab
 import { RemoteUserList } from "../features/collaboration/components/RemoteUserList";
 import { crdtDocumentManager } from "../features/collaboration/crdt/CrdtDocumentManager";
 import { repositoryApi } from "../features/repository/api";
+import { ApiError } from "../services/apiClient";
+import type { FileContent } from "../features/fileExplorer/types";
 
 function MonacoPane({
   projectId,
@@ -304,6 +306,13 @@ export function FileExplorerPage() {
   const [closing, setClosing] =
     useState<EditorTab>();
 
+  const [saveConflict, setSaveConflict] = useState<{
+    fileId: string;
+    fileName: string;
+    latest: FileContent;
+    closeAfterSave: boolean;
+  }>();
+
   const [quickOpen, setQuickOpen] =
     useState(false);
 
@@ -374,19 +383,44 @@ export function FileExplorerPage() {
     []
   );
 
+  const handleSaveError = useCallback(async (
+    error: unknown,
+    fileId: string,
+    closeAfterSave = false
+  ) => {
+    if (error instanceof ApiError && error.status === 409) {
+      try {
+        const latest = await fileExplorerApi.content(fileId);
+        const current = useEditorStore.getState().tabs[fileId];
+
+        if (current) {
+          setClosing(undefined);
+          setSaveConflict({
+            fileId,
+            fileName: current.name,
+            latest,
+            closeAfterSave,
+          });
+          return;
+        }
+      } catch (reloadError) {
+        show(
+          reloadError instanceof Error ? reloadError.message : "Could not load the latest file version.",
+          "error"
+        );
+        return;
+      }
+    }
+
+    show(error instanceof Error ? error.message : "Save failed.", "error");
+  }, [show]);
+
   useKeyboardShortcuts({
     save: () => {
       if (!tabs.activeTabId) return;
 
-      void saveNow(tabs.activeTabId).catch(
-        (error) =>
-          show(
-            error instanceof Error
-              ? error.message
-              : "Save failed.",
-            "error"
-          )
-      );
+      const fileId = tabs.activeTabId;
+      void saveNow(fileId).catch((error) => void handleSaveError(error, fileId));
     },
 
     close: () =>
@@ -1237,13 +1271,7 @@ export function FileExplorerPage() {
                     undefined
                   );
                 } catch (error) {
-                  show(
-                    error instanceof
-                      Error
-                      ? error.message
-                      : "Save failed.",
-                    "error"
-                  );
+                  await handleSaveError(error, closing.id, true);
                 }
               }}
             >
@@ -1256,6 +1284,78 @@ export function FileExplorerPage() {
           The server concurrency
           token will be checked before
           saving.
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(saveConflict)}
+        title={`Newer version of ${saveConflict?.fileName ?? "this file"} found`}
+        description="Another client saved this file after you opened it. Your local edits are still preserved."
+        onClose={() => setSaveConflict(undefined)}
+        footer={
+          <>
+            <button
+              className="ui-button ghost"
+              onClick={() => setSaveConflict(undefined)}
+            >
+              Keep editing
+            </button>
+
+            <button
+              className="ui-button ghost"
+              onClick={() => {
+                if (!saveConflict) return;
+
+                crdtDocumentManager.reset(
+                  saveConflict.fileId,
+                  saveConflict.latest.content
+                );
+                tabs.acceptExternal(
+                  saveConflict.fileId,
+                  saveConflict.latest.content,
+                  saveConflict.latest.concurrencyToken
+                );
+
+                if (saveConflict.closeAfterSave) {
+                  tabs.closeTab(saveConflict.fileId);
+                }
+
+                setSaveConflict(undefined);
+                show("Latest server version loaded.");
+              }}
+            >
+              Load server version
+            </button>
+
+            <button
+              className="ui-button primary"
+              onClick={async () => {
+                if (!saveConflict) return;
+
+                const { fileId, latest, closeAfterSave } = saveConflict;
+                tabs.rebaseLocalChanges(fileId, latest.content, latest.concurrencyToken);
+
+                try {
+                  await saveNow(fileId);
+
+                  if (closeAfterSave) {
+                    tabs.closeTab(fileId);
+                  }
+
+                  setSaveConflict(undefined);
+                  show("Local changes saved over the newer version.");
+                } catch (error) {
+                  await handleSaveError(error, fileId, closeAfterSave);
+                }
+              }}
+            >
+              Save my version
+            </button>
+          </>
+        }
+      >
+        <div className="confirmation-note">
+          Choose “Load server version” to discard your local edits, or “Save my version” to explicitly replace the latest server content.
         </div>
       </Dialog>
 

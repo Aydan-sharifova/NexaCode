@@ -19,6 +19,7 @@ export function useEditorTabs() {
   const closeStoreTab = useEditorStore((state) => state.closeTab);
   const discardChanges = useEditorStore((state) => state.discardChanges);
   const acceptExternal = useEditorStore((state) => state.acceptExternal);
+  const rebaseLocalChanges = useEditorStore((state) => state.rebaseLocalChanges);
   const setFontSize = useEditorStore((state) => state.setFontSize);
   const setPanelWidths = useEditorStore((state) => state.setPanelWidths);
   const toggleRightPanel = useEditorStore((state) => state.toggleRightPanel);
@@ -33,5 +34,5 @@ export function useEditorTabs() {
     openTab({ id: node.id, name: node.name, path: file.path, language: detectLanguage(node.name), content: file.content, savedContent: file.content, concurrencyToken: file.concurrencyToken });
   };
   const closeTab = (id: string) => { const url = useEditorStore.getState().tabs[id]?.objectUrl; if (url) URL.revokeObjectURL(url); closeStoreTab(id); };
-  return { tabs, openTabIds, activeTabId, closedTabHistory, fontSize, leftWidth, rightWidth, rightPanelVisible, activateTab, closeTab, discardChanges, acceptExternal, setFontSize, setPanelWidths, toggleRightPanel, openFile, activeTab: activeTabId ? tabs[activeTabId] : undefined };
+  return { tabs, openTabIds, activeTabId, closedTabHistory, fontSize, leftWidth, rightWidth, rightPanelVisible, activateTab, closeTab, discardChanges, acceptExternal, rebaseLocalChanges, setFontSize, setPanelWidths, toggleRightPanel, openFile, activeTab: activeTabId ? tabs[activeTabId] : undefined };
 }
