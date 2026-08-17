@@ -32,9 +32,18 @@ try
         .AddJsonFile($"appsettings.{environmentName}.json", optional: true, reloadOnChange: false)
         .AddEnvironmentVariables()
         .AddCommandLine(args);
-    builder.WebHost
-        .UseKestrel()
-        .UseUrls(Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://localhost:5192");
+    builder.WebHost.UseKestrel();
+
+    // Render and similar platforms route traffic only to the port they expose.
+    // Prefer their PORT value and listen on every container interface. Outside
+    // such platforms, Kestrel continues to honor ASPNETCORE_URLS or
+    // ASPNETCORE_HTTP_PORTS (including the Docker image's port 8080 default).
+    var platformPort = Environment.GetEnvironmentVariable("PORT");
+    if (int.TryParse(platformPort, out var parsedPort) &&
+        parsedPort is > 0 and <= 65535)
+    {
+        builder.WebHost.UseUrls($"http://0.0.0.0:{parsedPort}");
+    }
 
     builder.Host.UseSerilog((context, services, logger) => logger
         .ReadFrom.Configuration(context.Configuration)
@@ -125,7 +134,11 @@ try
     // Local Vite/Nginx development proxies use the HTTP launch endpoint. Redirecting
     // proxied API calls to the HTTPS development certificate breaks browser requests.
     // Production TLS is still enforced here and by the reverse proxy/HSTS.
-    if (app.Environment.IsProduction())
+    if (app.Environment.IsProduction() &&
+        !string.Equals(
+            Environment.GetEnvironmentVariable("RENDER"),
+            "true",
+            StringComparison.OrdinalIgnoreCase))
     {
         app.UseHttpsRedirection();
     }
