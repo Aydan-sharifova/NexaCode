@@ -25,6 +25,7 @@ using Coding.Application.Features.Users;
 using Coding.Infrastructure.Users;
 using Coding.Application.Features.Repositories;
 using Coding.Infrastructure.Repositories;
+using Coding.Infrastructure.Kanban;
 
 namespace Coding.Infrastructure;
 
@@ -93,6 +94,7 @@ public static class DependencyInjection
         services.AddScoped<IDemoEnvironmentService, DemoEnvironmentService>();
         services.AddHostedService<DemoResetBackgroundService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddHostedService<TaskDeadlineMonitorService>();
         services.AddScoped<IActivityLogger, ActivityLogger>();
             services.AddScoped<IFileStorageService, LocalFileStorageService>();
             services.AddScoped<IDatabaseMetadataProvider, EfCoreDatabaseMetadataProvider>();

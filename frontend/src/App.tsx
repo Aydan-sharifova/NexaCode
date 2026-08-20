@@ -53,6 +53,8 @@ const TeamPage = lazyRoute(() => import("./pages/TeamPage").then((module) => ({ 
 const AnalyticsPage = lazyRoute(() => import("./pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
 const AdminPage = lazyRoute(() => import("./pages/AdminPage").then((module) => ({ default: module.AdminPage })));
 const ProjectToolPage = lazyRoute(() => import("./pages/ProjectToolPage").then((module) => ({ default: module.ProjectToolPage })));
+const PublicUserProfilePage = lazyRoute(() => import("./pages/PublicUserProfilePage").then((module) => ({ default: module.PublicUserProfilePage })));
+const PublicProjectPage = lazyRoute(() => import("./pages/PublicProjectPage").then((module) => ({ default: module.PublicProjectPage })));
 
 function ProtectedDashboard() {
   const { session, isInitializing } = useAuth();
@@ -122,6 +124,8 @@ export default function App() {
         <Route path="/settings" element={<Suspense fallback={<div className="route-loader" role="status">Loading settings…</div>}><SettingsPage /></Suspense>} />
         <Route path="/help" element={<Suspense fallback={<div className="route-loader" role="status">Loading help center…</div>}><HelpCenterPage /></Suspense>} />
         <Route path="/team" element={<Suspense fallback={<div className="route-loader" role="status">Loading team…</div>}><TeamPage /></Suspense>} />
+        <Route path="/users/:publicId" element={<Suspense fallback={<div className="route-loader" role="status">Loading public profile…</div>}><PublicUserProfilePage /></Suspense>} />
+        <Route path="/public/projects/:projectId" element={<Suspense fallback={<div className="route-loader" role="status">Loading public project…</div>}><PublicProjectPage /></Suspense>} />
         <Route path="/analytics" element={<Suspense fallback={<div className="route-loader" role="status">Loading analytics…</div>}><AnalyticsPage /></Suspense>} />
         <Route path="/invitations/:token" element={<Suspense fallback={<div className="route-loader" role="status">Loading invitation…</div>}><InvitationPage /></Suspense>} />
       </Route>

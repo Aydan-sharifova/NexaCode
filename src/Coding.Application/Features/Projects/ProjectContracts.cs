@@ -6,7 +6,7 @@ namespace Coding.Application.Features.Projects;
 
 public sealed record ProjectListItem(Guid Id, string Name, string? Description, string DefaultLanguage, ProjectRole CurrentUserRole, int MemberCount, DateTime CreatedAt);
 public sealed record ProjectDetails(Guid Id, string Name, string? Description, string DefaultLanguage, bool IsPublic, Guid OwnerId, ProjectRole CurrentUserRole, DateTime CreatedAt, DateTime? UpdatedAt);
-public sealed record ProjectMemberDetails(Guid UserId, string FullName, string Email, string? AvatarUrl, ProjectRole Role, DateTime JoinedAt);
+public sealed record ProjectMemberDetails(Guid UserId, string PublicId, string FullName, string Email, string? AvatarUrl, ProjectRole Role, DateTime JoinedAt);
 public sealed record ProjectInvitationDetails(Guid Id, string Email, ProjectRole Role, DateTime ExpiresAt, string InvitedBy);
 public sealed record CreatedInvitation(Guid Id, string Token, DateTime ExpiresAt);
 

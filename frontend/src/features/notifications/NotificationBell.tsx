@@ -47,9 +47,9 @@ export function NotificationBell() {
   }, [open]);
   const openNotification = async (item: typeof items[number]) => {
     if (!item.isRead) {
+      read(item.id);
       try {
         await notificationApi.read(item.id);
-        read(item.id);
       } catch {
         // Keep navigation available; polling will retry state synchronization.
       }
@@ -74,7 +74,15 @@ export function NotificationBell() {
     {open && <div className="notification-dropdown" role="dialog" aria-label={pt("notifications")}>
       <header>
         <div><strong>{pt("notifications")}</strong>{unreadCount > 0 && <small>{unreadCount}</small>}</div>
-        <button disabled={unreadCount === 0} onClick={async () => { await notificationApi.readAll(); read(); }}>{pt("markAllRead")}</button>
+        <button disabled={unreadCount === 0} onClick={async () => {
+          read();
+          try {
+            await notificationApi.readAll();
+          } catch {
+            const page = await notificationApi.list().catch(() => undefined);
+            if (page) setPage(page.items, page.unreadCount);
+          }
+        }}>{pt("markAllRead")}</button>
       </header>
       <div className="notification-dropdown-body">
         {items.slice(0, 6).map((item) => <button key={item.id} className={item.isRead ? "" : "unread"} onClick={() => void openNotification(item)}>

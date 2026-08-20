@@ -44,6 +44,13 @@ try
     {
         builder.WebHost.UseUrls($"http://0.0.0.0:{parsedPort}");
     }
+    else
+    {
+        var configuredUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+        builder.WebHost.UseUrls(string.IsNullOrWhiteSpace(configuredUrls)
+            ? "http://localhost:5192"
+            : configuredUrls);
+    }
 
     builder.Host.UseSerilog((context, services, logger) => logger
         .ReadFrom.Configuration(context.Configuration)

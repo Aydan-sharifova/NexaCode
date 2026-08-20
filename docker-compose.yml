@@ -68,7 +68,8 @@ services:
       context: .
       dockerfile: src/Coding.Api/Dockerfile
     environment: *api-environment
-    expose: ["8080"]
+    ports:
+      - "${API_PORT:-5192}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -148,4 +149,3 @@ volumes:
 networks:
   frontend:
   backend:
-    internal: true

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Coding.Application.Abstractions;
 using Coding.Application.Features.FileExplorer;
+using Coding.Application.Features.Repositories;
 using Coding.Data;
 using Coding.Enums;
 using Coding.Exceptions;
@@ -94,8 +95,19 @@ public sealed class DeleteNodeHandler(AppDbContext db, ICurrentUser user) : IReq
 public sealed class RestoreDeletedNodeHandler(AppDbContext db, ICurrentUser user) : IRequestHandler<RestoreDeletedNodeCommand>
 { public async Task Handle(RestoreDeletedNodeCommand r, CancellationToken ct) { var n = await NodeOperations.NodeAsync(db, r.NodeId, ct, true); var role = await ProjectAccess.RequireMemberAsync(db, n.ProjectId, user.UserId, ct); ProjectAccess.RequireManager(role); await NodeOperations.EnsureParentAsync(db, n.ProjectId, n.ParentId, ct); await NodeOperations.EnsureUniqueAsync(db, n.ProjectId, n.ParentId, n.Name, n.ID, true, ct); foreach (var item in (await NodeOperations.DescendantsAsync(db, n.ID, true, ct)).Prepend(n)) { item.IsDeleted = false; item.DeletedAt = null; item.UpdateAt = DateTime.UtcNow; } await db.SaveChangesAsync(ct); } }
 
-public sealed class SaveFileContentHandler(AppDbContext db, ICurrentUser user) : IRequestHandler<SaveFileContentCommand, FileContentDto>
-{ public async Task<FileContentDto> Handle(SaveFileContentCommand r, CancellationToken ct) { var n = await NodeOperations.NodeAsync(db, r.NodeId, ct); await ProjectAccess.RequireMemberAsync(db, n.ProjectId, user.UserId, ct); return await NodeOperations.SaveAsync(db, user, n, r.Content, r.ConcurrencyToken, ct); } }
+public sealed class SaveFileContentHandler(AppDbContext db, ICurrentUser user, IGitRepositoryService git) : IRequestHandler<SaveFileContentCommand, FileContentDto>
+{
+    public async Task<FileContentDto> Handle(SaveFileContentCommand r, CancellationToken ct)
+    {
+        var node = await NodeOperations.NodeAsync(db, r.NodeId, ct);
+        await ProjectAccess.RequireMemberAsync(db, node.ProjectId, user.UserId, ct);
+
+        var saved = await NodeOperations.SaveAsync(db, user, node, r.Content, r.ConcurrencyToken, ct);
+        await git.InitializeAsync(node.ProjectId, "main", ct);
+        await git.WriteFileAsync(node.ProjectId, saved.Path, Encoding.UTF8.GetBytes(saved.Content), ct);
+        return saved;
+    }
+}
 
 public sealed class RestoreFileVersionHandler(AppDbContext db, ICurrentUser user) : IRequestHandler<RestoreFileVersionCommand, FileContentDto>
 { public async Task<FileContentDto> Handle(RestoreFileVersionCommand r, CancellationToken ct) { var n = await NodeOperations.NodeAsync(db, r.NodeId, ct); await ProjectAccess.RequireMemberAsync(db, n.ProjectId, user.UserId, ct); var version = await db.FileVersions.AsNoTracking().SingleOrDefaultAsync(x => x.ID == r.VersionId && x.NodeId == n.ID, ct) ?? throw new NotFoundException("File version not found."); var token = await db.FileContents.Where(x => x.NodeId == n.ID).Select(x => x.ConcurrencyToken).SingleAsync(ct); return await NodeOperations.SaveAsync(db, user, n, version.Content, token, ct); } }

@@ -289,7 +289,7 @@ public sealed class ListProjectMembersHandler(AppDbContext context, ICurrentUser
     {
         await ProjectAccess.RequireMemberAsync(context, request.ProjectId, currentUser.UserId, cancellationToken);
         return await context.ProjectMembers.AsNoTracking().Where(member => member.ProjectId == request.ProjectId).OrderBy(member => member.Role)
-            .Select(member => new ProjectMemberDetails(member.UserId, member.User.FirstName + " " + member.User.LastName, member.User.Email, member.User.AvatarUrl, member.Role, member.JoinedAt)).ToListAsync(cancellationToken);
+            .Select(member => new ProjectMemberDetails(member.UserId, member.User.PublicId, member.User.FirstName + " " + member.User.LastName, member.User.Email, member.User.AvatarUrl, member.Role, member.JoinedAt)).ToListAsync(cancellationToken);
     }
 }
 

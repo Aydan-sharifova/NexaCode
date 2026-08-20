@@ -31,6 +31,14 @@ internal static partial class KanbanSupport
     {
         if (role is not (ProjectRole.Owner or ProjectRole.Admin)) throw new ForbiddenException("Only project Owners and Admins may perform this action.");
     }
+    public static void RequireOwner(ProjectRole role)
+    {
+        if (role != ProjectRole.Owner) throw new ForbiddenException("Only the project owner may perform this action.");
+    }
+    public static void RequireBeforeDeadline(ProjectTask task)
+    {
+        if (task.DueDate.HasValue && task.DueDate.Value <= DateTime.UtcNow) throw new ConflictException("The task deadline has passed. This task is locked.");
+    }
     public static IQueryable<ProjectTaskDto> Project(IQueryable<ProjectTask> query) => query.Select(task => new ProjectTaskDto(task.ID, task.ProjectId, task.Title, task.Description, task.Status, task.Priority, task.Position, task.DueDate, task.CreatedByUserId, task.CreatedAt, task.UpdatedAt, task.Assignees.Select(a => new TaskAssigneeDto(a.UserId, a.User.FirstName + " " + a.User.LastName, a.User.AvatarUrl)).ToList(), task.Comments.OrderBy(c => c.CreatedAt).Select(c => new TaskCommentDto(c.ID, c.UserId, c.User.FirstName + " " + c.User.LastName, c.User.AvatarUrl, c.Content, c.CreatedAt)).ToList()));
     public static Task<ProjectTaskDto> Dto(AppDbContext db, Guid taskId, CancellationToken ct) => Project(db.ProjectTasks.AsNoTracking().Where(x => x.ID == taskId)).SingleAsync(ct);
     public static string[] Mentions(string content) => MentionRegex().Matches(content).Select(x => x.Groups[1].Value).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -50,7 +58,8 @@ public sealed class CreateTaskHandler(AppDbContext db, ICurrentUser user, IActiv
 {
     public async Task<ProjectTaskDto> Handle(CreateTaskCommand r, CancellationToken ct)
     {
-        await ProjectAccess.RequireMemberAsync(db, r.ProjectId, user.UserId, ct);
+        var role = await ProjectAccess.RequireMemberAsync(db, r.ProjectId, user.UserId, ct);
+        KanbanSupport.RequireOwner(role);
         var now = DateTime.UtcNow; var position = await KanbanSupport.Position(db, r.ProjectId, ProjectTaskStatus.Todo, null, null, ct);
         var task = new ProjectTask { ID = Guid.NewGuid(), ProjectId = r.ProjectId, Title = r.Title.Trim(), Description = r.Description?.Trim(), Status = ProjectTaskStatus.Todo, Priority = r.Priority, Position = position, DueDate = r.DueDate, CreatedByUserId = user.UserId, CreatedAt = now, UpdatedAt = now, CreatAt = now };
         db.ProjectTasks.Add(task); await db.SaveChangesAsync(ct);
@@ -60,7 +69,7 @@ public sealed class CreateTaskHandler(AppDbContext db, ICurrentUser user, IActiv
 }
 public sealed class UpdateTaskHandler(AppDbContext db, ICurrentUser user) : IRequestHandler<UpdateTaskCommand, ProjectTaskDto>
 {
-    public async Task<ProjectTaskDto> Handle(UpdateTaskCommand r, CancellationToken ct) { var (task, role) = await KanbanSupport.RequireTask(db, r.TaskId, user.UserId, ct); KanbanSupport.RequireEditor(task, role, user.UserId); task.Title = r.Title.Trim(); task.Description = r.Description?.Trim(); task.Priority = r.Priority; task.DueDate = r.DueDate; var now = DateTime.UtcNow; task.UpdatedAt = now; task.UpdateAt = now; await db.SaveChangesAsync(ct); return await KanbanSupport.Dto(db, task.ID, ct); }
+    public async Task<ProjectTaskDto> Handle(UpdateTaskCommand r, CancellationToken ct) { var (task, role) = await KanbanSupport.RequireTask(db, r.TaskId, user.UserId, ct); KanbanSupport.RequireEditor(task, role, user.UserId); KanbanSupport.RequireBeforeDeadline(task); task.Title = r.Title.Trim(); task.Description = r.Description?.Trim(); task.Priority = r.Priority; task.DueDate = r.DueDate; var now = DateTime.UtcNow; task.UpdatedAt = now; task.UpdateAt = now; await db.SaveChangesAsync(ct); return await KanbanSupport.Dto(db, task.ID, ct); }
 }
 public sealed class DeleteTaskHandler(AppDbContext db, ICurrentUser user, IActivityLogger activity) : IRequestHandler<DeleteTaskCommand>
 {
@@ -70,7 +79,7 @@ public sealed class MoveTaskHandler(AppDbContext db, ICurrentUser user, IActivit
 {
     public async Task<ProjectTaskDto> Handle(MoveTaskCommand r, CancellationToken ct)
     {
-        var (task, role) = await KanbanSupport.RequireTask(db, r.TaskId, user.UserId, ct); KanbanSupport.RequireEditor(task, role, user.UserId); var oldStatus = task.Status;
+        var (task, role) = await KanbanSupport.RequireTask(db, r.TaskId, user.UserId, ct); KanbanSupport.RequireOwner(role); KanbanSupport.RequireBeforeDeadline(task); var oldStatus = task.Status;
         var strategy = db.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () => { await using var tx = await db.Database.BeginTransactionAsync(ct); task.Status = r.Status; task.Position = await KanbanSupport.Position(db, task.ProjectId, r.Status, r.PreviousTaskId, r.NextTaskId, ct); var now = DateTime.UtcNow; task.UpdatedAt = now; task.UpdateAt = now; await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); });
         if (oldStatus != task.Status) await activity.LogAsync(new(user.UserId, task.ProjectId, "TaskStatusChanged", nameof(ProjectTask), task.ID, $"Moved task '{task.Title}' from {oldStatus} to {task.Status}.", new Dictionary<string, object?> { ["from"] = oldStatus.ToString(), ["to"] = task.Status.ToString() }), ct);

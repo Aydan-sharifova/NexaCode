@@ -336,7 +336,74 @@ export function FileExplorerPage() {
   const [dragActive, setDragActive] = useState(false);
   const [leftMode, setLeftMode] = useState<"explorer" | "source">("explorer");
   const [commitMessage, setCommitMessage] = useState("");
+  const [isCommitting, setIsCommitting] = useState(false);
   const repositoryStatus = useQuery({ queryKey: ["repository-status", projectId], queryFn: () => repositoryApi.status(projectId), enabled: Boolean(projectId) });
+
+  useEffect(() => useEditorStore.subscribe((state, previous) => {
+    const savedFile = state.openTabIds.some((id) =>
+      state.tabs[id]?.status === "Saved" &&
+      previous.tabs[id]?.status === "Saving"
+    );
+
+    if (savedFile) {
+      void repositoryStatus.refetch();
+    }
+  }), [repositoryStatus.refetch]);
+
+  const commitRepository = async () => {
+    const message = commitMessage.trim();
+    if (!message || isCommitting) return;
+
+    setIsCommitting(true);
+
+    try {
+      const editorState = useEditorStore.getState();
+      const dirtyIds = editorState.openTabIds.filter((id) => {
+        const tab = editorState.tabs[id];
+        return tab && tab.content !== tab.savedContent;
+      });
+
+      await Promise.all(dirtyIds.map((id) => saveNow(id)));
+
+      const saveDeadline = Date.now() + 7_000;
+      while (Date.now() < saveDeadline) {
+        const current = useEditorStore.getState();
+        const savePending = current.openTabIds.some((id) => {
+          const tab = current.tabs[id];
+          return tab && (tab.status === "Saving" || tab.content !== tab.savedContent);
+        });
+
+        if (!savePending) break;
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 100));
+      }
+
+      const current = useEditorStore.getState();
+      const unsaved = current.openTabIds.some((id) => {
+        const tab = current.tabs[id];
+        return tab && tab.content !== tab.savedContent;
+      });
+
+      if (unsaved) {
+        throw new Error("Save the open file successfully before committing.");
+      }
+
+      const status = await repositoryApi.status(projectId);
+      if (status.isClean) {
+        show("There are no saved changes to commit.", "error");
+        await repositoryStatus.refetch();
+        return;
+      }
+
+      await repositoryApi.commit(projectId, message);
+      setCommitMessage("");
+      await repositoryStatus.refetch();
+      show("Commit created.");
+    } catch (error) {
+      show(error instanceof Error ? error.message : "Commit failed.", "error");
+    } finally {
+      setIsCommitting(false);
+    }
+  };
 
   const handleSelectionChange = useCallback(
     (value: string) => {
@@ -795,7 +862,7 @@ export function FileExplorerPage() {
             <div className="source-control-panel">
               <strong>⎇ {repositoryStatus.data?.currentBranch || "main"}</strong>
               <textarea aria-label="Commit message" placeholder="Commit message" value={commitMessage} onChange={(event) => setCommitMessage(event.target.value)} />
-              <button disabled={!commitMessage.trim() || repositoryStatus.data?.isClean} onClick={async () => { try { await repositoryApi.commit(projectId, commitMessage.trim()); setCommitMessage(""); await repositoryStatus.refetch(); show("Commit created."); } catch (error) { show(error instanceof Error ? error.message : "Commit failed.", "error"); } }}>Commit</button>
+              <button disabled={!commitMessage.trim() || isCommitting} onClick={() => void commitRepository()}>{isCommitting ? "Saving & committing…" : "Commit"}</button>
               <div className="source-changes">{repositoryStatus.isLoading ? <span>Loading Git status…</span> : repositoryStatus.data?.files.length ? repositoryStatus.data.files.map((file) => <div key={file.path}><code>{file.indexStatus}{file.workingTreeStatus}</code><span>{file.path}</span></div>) : <span>No changes</span>}</div>
             </div>
           ) : tree.isLoading ? (

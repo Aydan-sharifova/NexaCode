@@ -3,7 +3,7 @@ using MediatR;
 
 namespace Coding.Application.Features.Chat;
 
-public sealed record ChatUser(Guid Id, string UserName, string DisplayName, string? AvatarUrl);
+public sealed record ChatUser(Guid Id, string PublicId, string UserName, string DisplayName, string? AvatarUrl);
 public sealed record ConversationItem(Guid Id, string Type, Guid? ProjectId, string Name, IReadOnlyList<ChatUser> Participants, ChatMessageItem? LastMessage, int UnreadCount, DateTime UpdatedAt);
 public sealed record ChatAttachmentItem(Guid Id, string FileName, string ContentType, long Size);
 public sealed record ChatMessageItem(Guid Id, Guid ConversationId, ChatUser Sender, string Content, DateTime CreatedAt, DateTime? EditedAt, bool IsDeleted, IReadOnlyList<Guid> ReadByUserIds, IReadOnlyList<ChatAttachmentItem> Attachments);

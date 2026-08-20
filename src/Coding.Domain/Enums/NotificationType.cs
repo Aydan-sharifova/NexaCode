@@ -11,6 +11,7 @@ namespace Coding.Enums
         TaskAssignment,
         UserMention,
         DirectMessage,
-        RoleChange
+        RoleChange,
+        TaskDeadlineExceeded
     }
 }

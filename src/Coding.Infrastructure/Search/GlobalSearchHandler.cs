@@ -29,7 +29,9 @@ public sealed class GlobalSearchHandler(AppDbContext db, ICurrentUser currentUse
                 .ThenBy(x => x.Name)
                 .Skip(offset).Take(request.PageSize + 1)
                 .Select(x => new SearchResultDto(SearchResultType.Project, x.ID, x.Name, x.DefaultLanguage,
-                    x.ID, x.Description ?? x.Name, $"/projects/{x.ID}/workspace",
+                    x.ID, x.Description ?? x.Name, memberships.Any(m => m.ProjectId == x.ID)
+                        ? "/projects/" + x.ID + "/workspace"
+                        : "/public/projects/" + x.ID,
                     EF.Functions.ILike(x.Name, query) ? 3 : EF.Functions.ILike(x.Name, query + "%") ? 2 : 1))
                 .ToListAsync(ct);
             groups.Add(Group(SearchResultType.Project, rows, request.PageSize));
@@ -71,18 +73,16 @@ public sealed class GlobalSearchHandler(AppDbContext db, ICurrentUser currentUse
 
         if (request.Type is null or SearchResultType.User)
         {
-            var sharedProjects = db.ProjectMembers.AsNoTracking()
-                .Where(x => memberships.Any(m => m.ProjectId == x.ProjectId));
             var rows = await db.Users.AsNoTracking()
-                .Where(x => sharedProjects.Any(m => m.UserId == x.ID)
+                .Where(x => !x.IsDeleted && !x.IsSuspended
                     && (EF.Functions.ILike(x.UserName, pattern) || EF.Functions.ILike(x.FirstName + " " + x.LastName, pattern)))
                 .OrderByDescending(x => EF.Functions.ILike(x.UserName, query))
                 .ThenBy(x => x.UserName)
                 .Skip(offset).Take(request.PageSize + 1)
                 .Select(x => new SearchResultDto(SearchResultType.User, x.ID, x.FirstName + " " + x.LastName,
                     "@" + x.UserName,
-                    sharedProjects.Where(m => m.UserId == x.ID).OrderBy(m => m.ProjectId).Select(m => (Guid?)m.ProjectId).FirstOrDefault(),
-                    x.UserName, "/team?user=" + x.ID,
+                    null,
+                    x.UserName, "/users/" + x.PublicId,
                     EF.Functions.ILike(x.UserName, query) ? 3 : EF.Functions.ILike(x.UserName, query + "%") ? 2 : 1))
                 .ToListAsync(ct);
             groups.Add(Group(SearchResultType.User, rows, request.PageSize));

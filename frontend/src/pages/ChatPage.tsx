@@ -8,9 +8,8 @@ import { usePageTranslation } from "../hooks/usePageTranslation";
 import { Dialog } from "../components/ui/Dialog";
 import { AiAssistantPanel } from "../features/ai/AiAssistantPanel";
 import { useToast } from "../contexts/ToastContext";
-import { isValidPublicUserId, normalizePublicUserId } from "../features/users/publicUserId";
 import { conversationsQueryKey, upsertConversation } from "../features/chat/conversationCache";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 export function ChatPage() {
   const { pt } = usePageTranslation();
@@ -57,17 +56,22 @@ export function ChatPage() {
   const upload = useMutation({ mutationFn: (file: File) => chatApi.upload(active!, file, content), onSuccess: () => { setContent(""); refreshChat(); show("File sent."); }, onError: (error) => show(error.message, "error") });
   const downloadAttachment = async (id: string, fileName: string) => { try { const blob = await chatApi.attachment(id); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = fileName; anchor.click(); URL.revokeObjectURL(url); } catch (error) { show(error instanceof Error ? error.message : "Download failed.", "error"); } };
   const startDirect = () => {
-    if (!isValidPublicUserId(otherUserId)) {
-      show("Paste the complete user ID from the other user's profile.", "error");
+    const identifier = otherUserId.trim().replace(/^@/, "");
+    if (identifier.length < 2) {
+      show("Enter a Public ID or username.", "error");
       return;
     }
-    createDirect.mutate(normalizePublicUserId(otherUserId));
+    createDirect.mutate(identifier);
   };
   const orderedMessages = useMemo(
     () => [...(messages.data?.pages.flatMap((page) => page.items) ?? [])].reverse(),
     [messages.data?.pages],
   );
   const selected = conversations.data?.find((item) => item.id === active);
+  const directParticipant = selected?.type === "Direct"
+    ? selected.participants.find((participant) => participant.id !== session?.user.id)
+    : undefined;
+  const directProfileIdentifier = directParticipant?.publicId || directParticipant?.userName || directParticipant?.id;
   const unreadCount = conversations.data?.reduce((sum, item) => sum + item.unreadCount, 0) ?? 0;
   useEffect(() => {
     if (!selected?.lastMessage || selected.unreadCount === 0) return;
@@ -146,7 +150,9 @@ export function ChatPage() {
             <header>
               <div className="chat-avatar">{selected.type === "ProjectChannel" ? "#" : selected.name.slice(0, 1)}</div>
               <div>
-                <strong>{selected.name}</strong>
+                {selected.type === "Direct" && directProfileIdentifier
+                  ? <Link className="chat-user-profile-link" to={`/users/${encodeURIComponent(directProfileIdentifier)}`}>{selected.name}</Link>
+                  : <strong>{selected.name}</strong>}
                 <small>{selected.type === "ProjectChannel" ? pt("projectChannel") : pt("directConversation")}</small>
               </div>
               {selected.projectId && (
@@ -168,7 +174,7 @@ export function ChatPage() {
                 <article key={message.id} className={message.sender.id === session?.user.id ? "mine" : ""}>
                   <div className="chat-message-avatar">{message.sender.displayName.slice(0, 1)}</div>
                   <div>
-                    <header><b>{message.sender.displayName}</b><time>{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{message.editedAt ? " · edited" : ""}</time>{message.sender.id === session?.user.id && !message.isDeleted && <span className="chat-message-actions"><button onClick={() => { setEditing(message); setContent(message.content); }}>Edit</button><button onClick={() => { if (window.confirm("Delete this message?")) removeMessage.mutate(message.id); }}>Delete</button></span>}</header>
+                    <header><Link className="chat-user-profile-link" to={`/users/${encodeURIComponent(message.sender.publicId || message.sender.userName || message.sender.id)}`}>{message.sender.displayName}</Link><time>{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{message.editedAt ? " · edited" : ""}</time>{message.sender.id === session?.user.id && !message.isDeleted && <span className="chat-message-actions"><button onClick={() => { setEditing(message); setContent(message.content); }}>Edit</button><button onClick={() => { if (window.confirm("Delete this message?")) removeMessage.mutate(message.id); }}>Delete</button></span>}</header>
                     <p>{message.content}</p>
                     {message.attachments?.map((attachment) => <button className="chat-attachment" key={attachment.id} onClick={() => void downloadAttachment(attachment.id, attachment.fileName)}><span>📎 {attachment.fileName}</span><small>{formatFileSize(attachment.size)} · Download</small></button>)}
                     {message.sender.id === session?.user.id && <small>{message.readByUserIds.length > 1 ? pt("read") : pt("sent")}</small>}

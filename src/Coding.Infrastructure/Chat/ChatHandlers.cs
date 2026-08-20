@@ -51,7 +51,7 @@ internal static partial class ChatSupport
         query.Select(message => new ChatMessageItem(
             message.ID,
             message.ConversationId,
-            new ChatUser(message.SenderId, message.Sender.UserName, message.Sender.FirstName + " " + message.Sender.LastName, message.Sender.AvatarUrl),
+            new ChatUser(message.SenderId, message.Sender.PublicId, message.Sender.UserName, message.Sender.FirstName + " " + message.Sender.LastName, message.Sender.AvatarUrl),
             message.IsDeleted ? "Message deleted" : message.Content,
             message.CreatedAt,
             message.EditedAtUtc,
@@ -87,7 +87,7 @@ public sealed class CreateDirectConversationHandler(AppDbContext db, ICurrentUse
         var identifier = request.OtherUserId.Trim().TrimStart('@');
         var otherUserId = await db.Users.AsNoTracking()
             .Where(user => !user.IsDeleted && !user.IsSuspended &&
-                (user.PublicId == identifier.ToUpper() || EF.Functions.ILike(user.Email, identifier)))
+                (user.PublicId == identifier.ToUpper() || EF.Functions.ILike(user.UserName, identifier) || EF.Functions.ILike(user.Email, identifier)))
             .Select(user => (Guid?)user.ID)
             .SingleOrDefaultAsync(ct)
             ?? throw new NotFoundException("User not found.");
@@ -141,7 +141,7 @@ public sealed class SendMessageHandler(
         trackedConversation.UpdatedAt = now;
         await db.SaveChangesAsync(ct);
 
-        var dto = new ChatMessageItem(message.ID, message.ConversationId, new ChatUser(sender.ID, sender.UserName, sender.FirstName + " " + sender.LastName, sender.AvatarUrl), message.Content, now, null, false, [currentUser.UserId], []);
+        var dto = new ChatMessageItem(message.ID, message.ConversationId, new ChatUser(sender.ID, sender.PublicId, sender.UserName, sender.FirstName + " " + sender.LastName, sender.AvatarUrl), message.Content, now, null, false, [currentUser.UserId], []);
         var notificationRequests = new List<CreateNotificationRequest>();
         if (conversation.Type == ConversationType.Direct)
             notificationRequests.AddRange(participantIds.Where(id => id != currentUser.UserId).Select(id =>
@@ -391,6 +391,7 @@ internal static class ConversationProjection
             .OrderBy(participant => participant.JoinedAt)
             .Select(participant => new ChatUser(
                 participant.UserId,
+                participant.User.PublicId,
                 participant.User.UserName,
                 participant.User.FirstName + " " + participant.User.LastName,
                 participant.User.AvatarUrl))

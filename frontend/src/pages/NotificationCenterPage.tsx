@@ -7,7 +7,7 @@ import { usePageTranslation } from "../hooks/usePageTranslation";
 import { projectApi } from "../features/projects/api";
 import { useToast } from "../contexts/ToastContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export function NotificationCenterPage() {
   const store = useNotificationStore();
@@ -23,22 +23,35 @@ export function NotificationCenterPage() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor,
   });
-  const items = query.data?.pages.flatMap((page) => page.items) ?? store.items;
+  const queriedItems = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data?.pages]);
+  const serverUnreadCount = query.data?.pages[0]?.unreadCount;
+
+  useEffect(() => {
+    if (query.data) store.mergePage(queriedItems, serverUnreadCount);
+  }, [query.data, queriedItems, serverUnreadCount, store.mergePage]);
+
+  const items = store.items;
   const unreadCount = items.filter((item) => !item.isRead).length;
 
   const openDirectMessage = async (notificationId: string, conversationId: string) => {
+    store.read(notificationId);
     try {
       await notificationApi.read(notificationId);
-      store.read(notificationId);
+    } catch {
+      await query.refetch();
     } finally {
       navigate(`/chat?conversation=${conversationId}`);
     }
   };
 
   const markAllRead = async () => {
-    await notificationApi.readAll();
     store.read();
-    await query.refetch();
+    try {
+      await notificationApi.readAll();
+    } catch (error) {
+      await query.refetch();
+      show(error instanceof Error ? error.message : "Unable to mark notifications as read.", "error");
+    }
   };
 
   const respondToInvitation = async (notificationId: string, invitationId: string, accept: boolean) => {
@@ -106,8 +119,13 @@ export function NotificationCenterPage() {
               </div>
               {!item.isRead && (
                 <button onClick={async () => {
-                  await notificationApi.read(item.id);
                   store.read(item.id);
+                  try {
+                    await notificationApi.read(item.id);
+                  } catch (error) {
+                    await query.refetch();
+                    show(error instanceof Error ? error.message : "Unable to update the notification.", "error");
+                  }
                 }}>
                   {pt("markRead")}
                 </button>

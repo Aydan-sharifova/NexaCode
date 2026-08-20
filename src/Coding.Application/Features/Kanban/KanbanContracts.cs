@@ -20,11 +20,11 @@ public sealed record GetProjectBoardQuery(Guid ProjectId) : IRequest<IReadOnlyLi
 
 public sealed class CreateTaskValidator : AbstractValidator<CreateTaskCommand>
 {
-    public CreateTaskValidator() { RuleFor(x => x.ProjectId).NotEmpty(); RuleFor(x => x.Title).NotEmpty().MaximumLength(200); RuleFor(x => x.Description).MaximumLength(4000); }
+    public CreateTaskValidator() { RuleFor(x => x.ProjectId).NotEmpty(); RuleFor(x => x.Title).NotEmpty().MaximumLength(200); RuleFor(x => x.Description).MaximumLength(4000); RuleFor(x => x.DueDate).Must(x => !x.HasValue || x.Value > DateTime.UtcNow).WithMessage("Due date must be in the future."); }
 }
 public sealed class UpdateTaskValidator : AbstractValidator<UpdateTaskCommand>
 {
-    public UpdateTaskValidator() { RuleFor(x => x.TaskId).NotEmpty(); RuleFor(x => x.Title).NotEmpty().MaximumLength(200); RuleFor(x => x.Description).MaximumLength(4000); }
+    public UpdateTaskValidator() { RuleFor(x => x.TaskId).NotEmpty(); RuleFor(x => x.Title).NotEmpty().MaximumLength(200); RuleFor(x => x.Description).MaximumLength(4000); RuleFor(x => x.DueDate).Must(x => !x.HasValue || x.Value > DateTime.UtcNow).WithMessage("Due date must be in the future."); }
 }
 public sealed class MoveTaskValidator : AbstractValidator<MoveTaskCommand>
 {
