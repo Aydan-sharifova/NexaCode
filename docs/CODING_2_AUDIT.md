@@ -332,6 +332,6 @@ The repository already contains substantial, overlapping user work. Stabilizatio
 
 - A real static deployment pipeline now snapshots the saved root `index.html` plus allowlisted text assets into versioned database records, binds each version to a source SHA-256 and latest Git commit, retains superseded releases, and exposes the active public release through a stable slug URL.
 - Deployment requires a public project, repository-write membership and a writable project lifecycle state. Limits of 250 files and 2,000,000 characters prevent unbounded snapshots; ambiguous/traversal asset paths are rejected.
-- Public assets use strict content types, `nosniff` and a restrictive CSP. The migration enforces unique project versions, unique slugs and one active deployment per project. Backend 300/300 tests, frontend build, and Chromium deployment workflow pass.
+- Public assets use strict content types, `nosniff` and a restrictive CSP. Returned links are origin-relative to prevent Host-header link poisoning. The migration enforces unique project versions, unique slugs and one active deployment per project. Backend 300/300 tests, frontend build, and Chromium deployment workflow pass; the PostgreSQL testcontainer case is present but skips when Docker is unavailable.
 
 The platform is a strong working foundation, not yet the complete CODING 2.0 target. Missing systems remain documented as missing. Production code execution is not claimed until the isolated worker architecture is deployed and verified.

@@ -9,12 +9,10 @@ namespace Coding.Controllers;
 public sealed class ProjectDeploymentsController(IProjectDeploymentService service) : ControllerBase
 {
     [HttpGet]
-    public Task<IReadOnlyList<DeploymentSummary>> List(Guid projectId, CancellationToken ct) => service.ListAsync(projectId, Origin(), ct);
+    public Task<IReadOnlyList<DeploymentSummary>> List(Guid projectId, CancellationToken ct) => service.ListAsync(projectId, ct);
 
     [HttpPost, EnableRateLimiting("runtime")]
-    public Task<DeploymentSummary> Deploy(Guid projectId, CancellationToken ct) => service.DeployAsync(projectId, Origin(), ct);
-
-    private string Origin() => $"{Request.Scheme}://{Request.Host}";
+    public Task<DeploymentSummary> Deploy(Guid projectId, CancellationToken ct) => service.DeployAsync(projectId, ct);
 }
 
 [ApiController, Route("deploy")]

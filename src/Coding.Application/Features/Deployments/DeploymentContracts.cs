@@ -17,7 +17,7 @@ public static class DeploymentPathPolicy
 
 public interface IProjectDeploymentService
 {
-    Task<IReadOnlyList<DeploymentSummary>> ListAsync(Guid projectId, string origin, CancellationToken ct);
-    Task<DeploymentSummary> DeployAsync(Guid projectId, string origin, CancellationToken ct);
+    Task<IReadOnlyList<DeploymentSummary>> ListAsync(Guid projectId, CancellationToken ct);
+    Task<DeploymentSummary> DeployAsync(Guid projectId, CancellationToken ct);
     Task<DeploymentAsset?> GetPublicAssetAsync(string slug, string? path, CancellationToken ct);
 }

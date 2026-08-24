@@ -3,6 +3,10 @@ using Coding.Exceptions;
 using Coding.Infrastructure.Users;
 using Coding.Infrastructure.Repositories;
 using Coding.Application.Features.Repositories;
+using Coding.Application.Abstractions;
+using Coding.Application.Features.Activities;
+using Coding.Infrastructure.Deployments;
+using Coding.Enums;
 using Coding.Models;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -100,6 +104,37 @@ public sealed class PostgreSqlContainerTests : IAsyncLifetime
         (await db.WorkspaceNodes.IgnoreQueryFilters().SingleAsync(node => node.ProjectId == project.ID && node.Name == "README.md")).IsDeleted.Should().BeTrue();
     }
 
+    [DockerFact]
+    public async Task Static_deployment_persists_versioned_assets_and_only_one_active_release()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(postgres.GetConnectionString()).Options;
+        await using var db = new AppDbContext(options);
+        await db.Database.MigrateAsync();
+        var now = DateTime.UtcNow;
+        var owner = NewUser("deploy_owner", now);
+        var project = new Project { ID = Guid.NewGuid(), Name = "Static Site", Owner = owner, OwnerId = owner.ID, DefaultLanguage = "HTML", IsPublic = true, CreatedAt = now, CreatAt = now };
+        var member = new ProjectMember { ID = Guid.NewGuid(), Project = project, ProjectId = project.ID, User = owner, UserId = owner.ID, Role = ProjectRole.Owner, JoinedAt = now, CreatAt = now };
+        var index = new WorkspaceNode { ID = Guid.NewGuid(), Project = project, ProjectId = project.ID, Name = "index.html", NodeType = WorkspaceNodeType.File, CreatAt = now };
+        index.FileContent = new FileContent { Node = index, NodeId = index.ID, Content = "<!doctype html><link rel=\"stylesheet\" href=\"site.css\"><h1>Release one</h1>", ContentHash = "a", ConcurrencyToken = Guid.NewGuid().ToString("N"), VersionNumber = 1, UpdatedAt = now, UpdatedBy = owner, UpdatedById = owner.ID };
+        var css = new WorkspaceNode { ID = Guid.NewGuid(), Project = project, ProjectId = project.ID, Name = "site.css", NodeType = WorkspaceNodeType.File, CreatAt = now };
+        css.FileContent = new FileContent { Node = css, NodeId = css.ID, Content = "h1{color:rebeccapurple}", ContentHash = "b", ConcurrencyToken = Guid.NewGuid().ToString("N"), VersionNumber = 1, UpdatedAt = now, UpdatedBy = owner, UpdatedById = owner.ID };
+        db.AddRange(owner, project, member, index, css);
+        await db.SaveChangesAsync();
+        var audit = new CapturingActivityLogger();
+        var service = new ProjectDeploymentService(db, new TestCurrentUser(owner.ID, owner.Email), audit);
+
+        var first = await service.DeployAsync(project.ID, default);
+        (await service.GetPublicAssetAsync(first.Slug, "site.css", default))!.Content.Should().Contain("rebeccapurple");
+        index.FileContent.Content = index.FileContent.Content.Replace("one", "two");
+        await db.SaveChangesAsync();
+        var second = await service.DeployAsync(project.ID, default);
+
+        second.Version.Should().Be(2);
+        second.SourceHash.Should().NotBe(first.SourceHash);
+        (await db.ProjectDeployments.CountAsync(x => x.ProjectId == project.ID && x.IsActive)).Should().Be(1);
+        audit.Items.Should().HaveCount(2).And.OnlyContain(x => x.ActionType == "DeploymentSucceeded");
+    }
+
     private static User NewUser(string name, DateTime now) => new()
     {
         ID = Guid.NewGuid(),
@@ -113,6 +148,13 @@ public sealed class PostgreSqlContainerTests : IAsyncLifetime
         UpdatedAt = now,
         LastSeen = now
     };
+}
+
+file sealed record TestCurrentUser(Guid UserId, string Email) : ICurrentUser;
+file sealed class CapturingActivityLogger : IActivityLogger
+{
+    public List<ActivityWrite> Items { get; } = [];
+    public Task LogAsync(ActivityWrite activity, CancellationToken cancellationToken = default) { Items.Add(activity); return Task.CompletedTask; }
 }
 
 public sealed class DockerFactAttribute : FactAttribute

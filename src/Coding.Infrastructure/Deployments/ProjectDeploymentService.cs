@@ -19,18 +19,21 @@ public sealed class ProjectDeploymentService(AppDbContext db, ICurrentUser curre
     private const int MaximumCharacters = 2_000_000;
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase) { ".html", ".htm", ".css", ".js", ".mjs", ".json", ".svg", ".txt", ".xml", ".webmanifest" };
 
-    public async Task<IReadOnlyList<DeploymentSummary>> ListAsync(Guid projectId, string origin, CancellationToken ct)
+    public async Task<IReadOnlyList<DeploymentSummary>> ListAsync(Guid projectId, CancellationToken ct)
     {
         await ProjectAccess.RequireMemberAsync(db, projectId, current.UserId, ct);
         var items = await db.ProjectDeployments.AsNoTracking().Where(x => x.ProjectId == projectId).OrderByDescending(x => x.Version).Take(50).ToListAsync(ct);
-        return items.Select(x => Map(x, origin)).ToList();
+        return items.Select(Map).ToList();
     }
 
-    public async Task<DeploymentSummary> DeployAsync(Guid projectId, string origin, CancellationToken ct)
+    public async Task<DeploymentSummary> DeployAsync(Guid projectId, CancellationToken ct)
     {
         var role = await ProjectAccess.RequireMemberAsync(db, projectId, current.UserId, ct);
         ProjectAccess.RequireRepositoryWrite(role);
         await ProjectAccess.EnsureWorkspaceWritableAsync(db, projectId, role, ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+        if (db.Database.IsNpgsql())
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({projectId.ToString()}, 0))", ct);
         var project = await db.Projects.AsNoTracking().SingleOrDefaultAsync(x => x.ID == projectId, ct) ?? throw new NotFoundException("Project not found.");
         if (!project.IsPublic) throw new ForbiddenException("Only public projects can create a public deployment.");
         var nodes = await db.WorkspaceNodes.AsNoTracking().Include(x => x.FileContent).Where(x => x.ProjectId == projectId).ToListAsync(ct);
@@ -49,7 +52,6 @@ public sealed class ProjectDeploymentService(AppDbContext db, ICurrentUser curre
         if (!files.Any(x => x.Path.Equals("index.html", StringComparison.OrdinalIgnoreCase))) throw new InvalidOperationException("A root index.html file is required for static deployment.");
         if (files.Count > MaximumFiles || files.Sum(x => x.Content.Length) > MaximumCharacters) throw new InvalidOperationException("Static deployment exceeds the 250 file or 2,000,000 character limit.");
         var sourceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", files.Select(x => $"{x.Path}\0{x.Content}"))))).ToLowerInvariant();
-        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
         await db.ProjectDeployments.Where(x => x.ProjectId == projectId && x.IsActive).ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false).SetProperty(x => x.UpdateAt, DateTime.UtcNow), ct);
         var version = (await db.ProjectDeployments.Where(x => x.ProjectId == projectId).MaxAsync(x => (int?)x.Version, ct) ?? 0) + 1;
         var commit = await db.GitCommits.AsNoTracking().Where(x => x.ProjectId == projectId).OrderByDescending(x => x.CommitDate).Select(x => x.CommitHash).FirstOrDefaultAsync(ct);
@@ -62,7 +64,7 @@ public sealed class ProjectDeploymentService(AppDbContext db, ICurrentUser curre
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         await activity.LogAsync(new(current.UserId, projectId, "DeploymentSucceeded", nameof(ProjectDeployment), deployment.ID, $"Deployed static site version {version}.", new Dictionary<string, object?> { ["version"] = version, ["sourceHash"] = sourceHash, ["commitSha"] = commit }), ct);
-        return Map(deployment, origin);
+        return Map(deployment);
     }
 
     public async Task<DeploymentAsset?> GetPublicAssetAsync(string slug, string? path, CancellationToken ct)
@@ -72,6 +74,6 @@ public sealed class ProjectDeploymentService(AppDbContext db, ICurrentUser curre
         return await db.ProjectDeploymentFiles.AsNoTracking().Where(x => x.Deployment.Slug == slug && x.Deployment.IsActive && x.Deployment.Project.IsPublic && x.Path == path).Select(x => new DeploymentAsset(x.Content, x.ContentType)).SingleOrDefaultAsync(ct);
     }
 
-    private static DeploymentSummary Map(ProjectDeployment x, string origin) => new(x.ID, x.ProjectId, x.Slug, x.Version, x.SourceHash, x.CommitSha, x.DeployedAt, x.IsActive, $"{origin.TrimEnd('/')}/deploy/{x.Slug}/");
+    private static DeploymentSummary Map(ProjectDeployment x) => new(x.ID, x.ProjectId, x.Slug, x.Version, x.SourceHash, x.CommitSha, x.DeployedAt, x.IsActive, $"/deploy/{x.Slug}/");
     private static string ContentType(string path) => System.IO.Path.GetExtension(path).ToLowerInvariant() switch { ".html" or ".htm" => "text/html; charset=utf-8", ".css" => "text/css; charset=utf-8", ".js" or ".mjs" => "text/javascript; charset=utf-8", ".json" or ".webmanifest" => "application/json; charset=utf-8", ".svg" => "image/svg+xml", ".xml" => "application/xml; charset=utf-8", _ => "text/plain; charset=utf-8" };
 }
