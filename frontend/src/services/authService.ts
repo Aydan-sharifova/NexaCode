@@ -27,7 +27,7 @@ export const authService = {
     tokenStore.clear();
   },
   requestEmailVerification: (email: string) => apiClient.post<void>("/auth/email-verification/request", { email }, { retryOnUnauthorized: false }),
-  verifyEmail: (token: string) => apiClient.post<void>("/auth/email-verification/confirm", { token }, { retryOnUnauthorized: false }),
+  verifyEmail: (token: string, email?: string) => apiClient.post<void>("/auth/email-verification/confirm", { token, email }, { retryOnUnauthorized: false }),
   forgotPassword: (email: string) => apiClient.post<void>("/auth/password/forgot", { email }, { retryOnUnauthorized: false }),
   resetPassword: (token: string, newPassword: string) => apiClient.post<void>("/auth/password/reset", { token, newPassword }, { retryOnUnauthorized: false }),
   refresh: () => apiClient.refreshSession(),

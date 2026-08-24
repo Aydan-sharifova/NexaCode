@@ -83,7 +83,7 @@ public sealed class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<Smtp
     }
 
     private string BuildClientLink(string path, string email, string token) =>
-        $"{options.Value.ClientBaseUrl.TrimEnd('/')}{path}?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
+        $"{options.Value.ClientBaseUrl.TrimEnd('/')}?accountAction={Uri.EscapeDataString(path.TrimStart('/'))}&email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
 
     private static string CreatePlainTextBody(string htmlBody)
     {

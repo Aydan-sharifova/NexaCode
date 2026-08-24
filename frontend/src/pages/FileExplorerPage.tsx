@@ -2,7 +2,7 @@ import Editor, { type OnMount } from "@monaco-editor/react";
 import "../features/editor/monacoSetup";
 import type { editor } from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { ConfirmDialog, Dialog } from "../components/ui/Dialog";
 import { useToast } from "../contexts/ToastContext";
@@ -36,15 +36,24 @@ import { crdtDocumentManager } from "../features/collaboration/crdt/CrdtDocument
 import { repositoryApi } from "../features/repository/api";
 import { ApiError } from "../services/apiClient";
 import type { FileContent } from "../features/fileExplorer/types";
+import { queryKeys } from "../services/queryKeys";
+import { LivePreviewPanel } from "../features/editor/LivePreviewPanel";
+import { useProject } from "../features/projects/hooks";
+import { VoiceCommandPanel } from "../features/voice/VoiceCommandPanel";
+import type { VoiceIntent } from "../features/voice/voiceIntent";
+import type { AiAction } from "../features/ai/types";
+import { autonomousTestingApi } from "../features/autonomous-testing/api";
 
 function MonacoPane({
   projectId,
   tab,
   onSelectionChange,
+  readOnly,
 }: {
   projectId: string;
   tab: EditorTab;
   onSelectionChange: (value: string) => void;
+  readOnly: boolean;
 }) {
   const { theme } = useTheme();
 
@@ -236,6 +245,8 @@ function MonacoPane({
         onMount={mount}
         keepCurrentModel
         options={{
+          readOnly,
+          readOnlyMessage: { value: "Viewer access is read-only." },
           fontSize,
           fontLigatures: true,
           minimap: {
@@ -270,6 +281,9 @@ export function FileExplorerPage() {
 
   const navigate = useNavigate();
   const { show } = useToast();
+  const queryClient = useQueryClient();
+  const project = useProject(projectId);
+  const readOnly = project.data?.isReadOnly ?? false;
 
   const explorer = useExplorerSnapshot();
   const tabs = useEditorTabs();
@@ -284,7 +298,7 @@ export function FileExplorerPage() {
   );
 
   const tree = useQuery({
-    queryKey: ["file-tree", projectId],
+    queryKey: queryKeys.fileTree(projectId),
     queryFn: () =>
       fileExplorerApi.tree(projectId),
     enabled: Boolean(projectId),
@@ -323,13 +337,14 @@ export function FileExplorerPage() {
     useState(0);
 
   const [rightMode, setRightMode] =
-    useState<"ai" | "collaboration">("ai");
+    useState<"ai" | "collaboration" | "preview">("ai");
 
   const [selectedCode, setSelectedCode] =
     useState("");
 
   const [aiSuggestion, setAiSuggestion] =
     useState<string>();
+  const [voiceAiRequest, setVoiceAiRequest] = useState<{ id: string; action: AiAction; message: string }>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState<string[]>([]);
@@ -337,7 +352,32 @@ export function FileExplorerPage() {
   const [leftMode, setLeftMode] = useState<"explorer" | "source">("explorer");
   const [commitMessage, setCommitMessage] = useState("");
   const [isCommitting, setIsCommitting] = useState(false);
-  const repositoryStatus = useQuery({ queryKey: ["repository-status", projectId], queryFn: () => repositoryApi.status(projectId), enabled: Boolean(projectId) });
+  const [repositoryPathBusy, setRepositoryPathBusy] = useState<string>();
+  const [sourceView, setSourceView] = useState<"changes" | "history" | "branches">("changes");
+  const [newBranchName, setNewBranchName] = useState("");
+  const [repositoryActionBusy, setRepositoryActionBusy] = useState<string>();
+  const [diffStaged, setDiffStaged] = useState(false);
+  const [selectedCommitSha, setSelectedCommitSha] = useState<string>();
+  const repositoryStatus = useQuery({ queryKey: queryKeys.repository.status(projectId), queryFn: () => repositoryApi.status(projectId), enabled: Boolean(projectId) });
+  const repositoryHistory = useQuery({ queryKey: queryKeys.repository.history(projectId), queryFn: () => repositoryApi.history(projectId), enabled: Boolean(projectId) });
+  const repositoryBranches = useQuery({ queryKey: queryKeys.repository.branches(projectId), queryFn: () => repositoryApi.branches(projectId), enabled: Boolean(projectId) });
+  const repositoryDiff = useQuery({ queryKey: queryKeys.repository.diff(projectId, diffStaged), queryFn: () => repositoryApi.diff(projectId, diffStaged), enabled: Boolean(projectId) && leftMode === "source" && sourceView === "changes" });
+  const selectedCommit = repositoryHistory.data?.find((commit) => commit.sha === selectedCommitSha);
+  const commitDiff = useQuery({ queryKey: queryKeys.repository.commitDiff(projectId, selectedCommitSha ?? ""), queryFn: () => repositoryApi.commitDiff(projectId, selectedCommitSha!), enabled: Boolean(projectId && selectedCommitSha) });
+
+  const refreshRepository = useCallback(async (includeWorkspaceData = false) => {
+    const tasks: Promise<unknown>[] = [
+      queryClient.invalidateQueries({ queryKey: queryKeys.repository.all(projectId) }),
+    ];
+    if (includeWorkspaceData) {
+      tasks.push(
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.activities }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.analytics }),
+      );
+    }
+    await Promise.all(tasks);
+  }, [projectId, queryClient]);
 
   useEffect(() => useEditorStore.subscribe((state, previous) => {
     const savedFile = state.openTabIds.some((id) =>
@@ -346,9 +386,9 @@ export function FileExplorerPage() {
     );
 
     if (savedFile) {
-      void repositoryStatus.refetch();
+      void refreshRepository();
     }
-  }), [repositoryStatus.refetch]);
+  }), [refreshRepository]);
 
   const commitRepository = async () => {
     const message = commitMessage.trim();
@@ -390,18 +430,64 @@ export function FileExplorerPage() {
       const status = await repositoryApi.status(projectId);
       if (status.isClean) {
         show("There are no saved changes to commit.", "error");
-        await repositoryStatus.refetch();
+        await refreshRepository();
         return;
       }
 
-      await repositoryApi.commit(projectId, message);
+      const commit = await repositoryApi.commit(projectId, message);
       setCommitMessage("");
-      await repositoryStatus.refetch();
-      show("Commit created.");
+      await refreshRepository(true);
+      setSourceView("history");
+      show(`Commit ${commit.shortSha} created.`);
     } catch (error) {
       show(error instanceof Error ? error.message : "Commit failed.", "error");
     } finally {
       setIsCommitting(false);
+    }
+  };
+
+  const setRepositoryStaged = async (path: string, staged: boolean) => {
+    if (repositoryPathBusy) return;
+    setRepositoryPathBusy(path);
+    try {
+      if (staged) await repositoryApi.stage(projectId, path);
+      else await repositoryApi.unstage(projectId, path);
+      await refreshRepository();
+    } catch (error) {
+      show(error instanceof Error ? error.message : `Could not ${staged ? "stage" : "unstage"} file.`, "error");
+    } finally {
+      setRepositoryPathBusy(undefined);
+    }
+  };
+
+  const createRepositoryBranch = async () => {
+    const name = newBranchName.trim();
+    if (!name || repositoryActionBusy) return;
+    setRepositoryActionBusy("create");
+    try {
+      await repositoryApi.createBranch(projectId, name);
+      setNewBranchName("");
+      await refreshRepository();
+      show(`Branch ${name} created.`);
+    } catch (error) {
+      show(error instanceof Error ? error.message : "Branch creation failed.", "error");
+    } finally {
+      setRepositoryActionBusy(undefined);
+    }
+  };
+
+  const checkoutRepositoryBranch = async (name: string) => {
+    if (repositoryActionBusy) return;
+    setRepositoryActionBusy(name);
+    try {
+      await repositoryApi.checkoutBranch(projectId, name);
+      const [, refreshedTree] = await Promise.all([refreshRepository(true), tree.refetch()]);
+      if (refreshedTree.data) explorerStore.load(refreshedTree.data);
+      show(`Checked out ${name}.`);
+    } catch (error) {
+      show(error instanceof Error ? error.message : "Branch checkout failed.", "error");
+    } finally {
+      setRepositoryActionBusy(undefined);
     }
   };
 
@@ -528,7 +614,7 @@ export function FileExplorerPage() {
     try {
       await fileExplorerApi.upload(projectId, createParentId, files);
       await reloadTree();
-      await repositoryStatus.refetch();
+      await refreshRepository();
       show(`${files.length} file${files.length === 1 ? "" : "s"} uploaded to ${selectedNode?.nodeType === "Folder" ? selectedNode.path : "/"}.`);
     } catch (error) {
       show(error instanceof Error ? error.message : "Upload failed.", "error");
@@ -565,6 +651,7 @@ export function FileExplorerPage() {
       setNewName("");
 
       await reloadTree();
+      await refreshRepository();
 
       show(
         `${
@@ -618,7 +705,22 @@ export function FileExplorerPage() {
           name
         );
 
+        const oldPath = node.path;
         await reloadTree();
+        const renamed = explorerStore.entities.get(node.id);
+        if (renamed) {
+          useEditorStore.getState().updateTabIdentity(renamed.id, renamed.name, renamed.path);
+          if (node.nodeType === "Folder") {
+            const prefix = `${oldPath.replace(/\/$/, "")}/`;
+            Object.values(useEditorStore.getState().tabs).forEach((tab) => {
+              if (tab.path.startsWith(prefix)) {
+                useEditorStore.getState().updateTabIdentity(tab.id, tab.name, `${renamed.path.replace(/\/$/, "")}/${tab.path.slice(prefix.length)}`);
+              }
+            });
+          }
+        }
+        await refreshRepository();
+        show(`${node.nodeType} renamed.`);
       } catch (error) {
         show(
           error instanceof Error
@@ -644,6 +746,7 @@ export function FileExplorerPage() {
         );
 
         await reloadTree();
+        await refreshRepository();
       } catch (error) {
         show(
           error instanceof Error
@@ -727,6 +830,28 @@ export function FileExplorerPage() {
         )
   );
 
+  const executeVoiceIntent = async (intent: Exclude<VoiceIntent, { kind: "unknown" }>) => {
+    if (intent.kind === "openFile") {
+      const requested = intent.fileName.toLowerCase().replace(/^\//, "");
+      const matches = [...explorer.entities.values()].filter(node => node.nodeType === "File" && (node.name.toLowerCase() === requested || node.path.toLowerCase().replace(/^\//, "") === requested));
+      if (matches.length === 0) throw new Error(`File '${intent.fileName}' was not found.`);
+      if (matches.length > 1) throw new Error(`More than one file is named '${intent.fileName}'. Say its full path.`);
+      await tabs.openFile(matches[0]); show(`Opened ${matches[0].path}.`); return;
+    }
+    if (intent.kind === "explain" || intent.kind === "fixError") {
+      if (!tabs.activeTab) throw new Error("Open a file before asking AI about it.");
+      setRightMode("ai"); if (!tabs.rightPanelVisible) tabs.toggleRightPanel();
+      setVoiceAiRequest({ id: crypto.randomUUID(), action: intent.kind === "explain" ? "Explain" : "SuggestFix", message: intent.kind === "explain" ? "Explain the current selection or file." : "Analyze the current file and suggest a minimal fix for the visible error. Do not apply code automatically." }); return;
+    }
+    if (readOnly) throw new Error("Viewer access cannot execute code or create branches.");
+    if (intent.kind === "runTests") {
+      if (!tabs.activeTab) throw new Error("Open a runnable file or test harness first.");
+      const result = await autonomousTestingApi.start(projectId, { workspaceNodeId: tabs.activeTab.id, goal: "Run bounded tests for the current file, identify failures, and report evidence without applying any code changes.", maximumIterations: 1 });
+      show(`Test run ${result.status.toLowerCase()}. No fix was applied.`); navigate(`/projects/${projectId}/autonomous-tests`); return;
+    }
+    await repositoryApi.createBranch(projectId, intent.branchName); await refreshRepository(); show(`Branch ${intent.branchName} created.`);
+  };
+
   return (
     <main className="workspace-page">
       <header className="workspace-toolbar">
@@ -745,6 +870,26 @@ export function FileExplorerPage() {
         </strong>
 
         <div>
+          <button onClick={() => navigate(`/projects/${projectId}/pull-requests`)} title="Review and merge branches">
+            ⇄ PRs
+          </button>
+          <button onClick={() => navigate(`/projects/${projectId}/deployments`)} title="Publish a versioned static deployment" disabled={readOnly}>
+            ↗ Deploy
+          </button>
+          <VoiceCommandPanel disabled={readOnly} execute={executeVoiceIntent} />
+
+          <button
+            className={rightMode === "preview" && tabs.rightPanelVisible ? "active" : ""}
+            onClick={() => {
+              setRightMode("preview");
+              if (!tabs.rightPanelVisible) tabs.toggleRightPanel();
+            }}
+            title="Run the current browser file"
+            disabled={readOnly}
+          >
+            ▶ Run
+          </button>
+
           <button
             onClick={() =>
               setQuickOpen(true)
@@ -754,6 +899,7 @@ export function FileExplorerPage() {
           </button>
 
           <button
+            disabled={readOnly}
             onClick={() =>
               actions.onCreate(
                 "file",
@@ -765,6 +911,7 @@ export function FileExplorerPage() {
           </button>
 
           <button
+            disabled={readOnly}
             onClick={() =>
               actions.onCreate(
                 "folder",
@@ -775,11 +922,11 @@ export function FileExplorerPage() {
             ＋ Folder
           </button>
 
-          <button aria-label="Upload files" title="Upload files" onClick={() => fileInputRef.current?.click()}>
+          <button disabled={readOnly} aria-label="Upload files" title="Upload files" onClick={() => fileInputRef.current?.click()}>
             ↑ File
           </button>
 
-          <button aria-label="Upload image" title="Upload image" onClick={() => imageInputRef.current?.click()}>
+          <button disabled={readOnly} aria-label="Upload image" title="Upload image" onClick={() => imageInputRef.current?.click()}>
             ▧ Image
           </button>
 
@@ -837,17 +984,17 @@ export function FileExplorerPage() {
           onDragEnter={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); setDragActive(true); } }}
           onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
           onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragActive(false); }}
-          onDrop={(event) => { if (!event.dataTransfer.files.length) return; event.preventDefault(); event.stopPropagation(); setDragActive(false); void uploadFiles(event.dataTransfer.files); }}>
+          onDrop={(event) => { if (!event.dataTransfer.files.length) return; event.preventDefault(); event.stopPropagation(); setDragActive(false); if (!readOnly) void uploadFiles(event.dataTransfer.files); }}>
           <header>
             <div className="workspace-left-tabs">
               <button className={leftMode === "explorer" ? "active" : ""} onClick={() => setLeftMode("explorer")}>EXPLORER</button>
               <button className={leftMode === "source" ? "active" : ""} onClick={() => setLeftMode("source")}>SOURCE {repositoryStatus.data?.files.length ? `(${repositoryStatus.data.files.length})` : ""}</button>
             </div>
             <div className="explorer-actions">
-              <button aria-label="New file" title="New file" onClick={() => actions.onCreate("file", createParentId)}>＋</button>
-              <button aria-label="New folder" title="New folder" onClick={() => actions.onCreate("folder", createParentId)}>▱</button>
-              <button aria-label="Upload files" title="Upload files" onClick={() => fileInputRef.current?.click()}>↑</button>
-              <button aria-label="Upload image" title="Upload image" onClick={() => imageInputRef.current?.click()}>▧</button>
+              <button disabled={readOnly} aria-label="New file" title="New file" onClick={() => actions.onCreate("file", createParentId)}>＋</button>
+              <button disabled={readOnly} aria-label="New folder" title="New folder" onClick={() => actions.onCreate("folder", createParentId)}>▱</button>
+              <button disabled={readOnly} aria-label="Upload files" title="Upload files" onClick={() => fileInputRef.current?.click()}>↑</button>
+              <button disabled={readOnly} aria-label="Upload image" title="Upload image" onClick={() => imageInputRef.current?.click()}>▧</button>
               <button aria-label="Refresh explorer" title="Refresh explorer" onClick={() => reloadTree()}>↻</button>
             </div>
           </header>
@@ -861,9 +1008,32 @@ export function FileExplorerPage() {
           {leftMode === "source" ? (
             <div className="source-control-panel">
               <strong>⎇ {repositoryStatus.data?.currentBranch || "main"}</strong>
-              <textarea aria-label="Commit message" placeholder="Commit message" value={commitMessage} onChange={(event) => setCommitMessage(event.target.value)} />
-              <button disabled={!commitMessage.trim() || isCommitting} onClick={() => void commitRepository()}>{isCommitting ? "Saving & committing…" : "Commit"}</button>
-              <div className="source-changes">{repositoryStatus.isLoading ? <span>Loading Git status…</span> : repositoryStatus.data?.files.length ? repositoryStatus.data.files.map((file) => <div key={file.path}><code>{file.indexStatus}{file.workingTreeStatus}</code><span>{file.path}</span></div>) : <span>No changes</span>}</div>
+              <nav className="source-view-tabs" aria-label="Source control views">
+                {(["changes", "history", "branches"] as const).map((view) => <button key={view} className={sourceView === view ? "active" : ""} onClick={() => setSourceView(view)}>{view}</button>)}
+              </nav>
+              {sourceView === "changes" && <>
+                <textarea aria-label="Commit message" placeholder="Commit message" value={commitMessage} onChange={(event) => setCommitMessage(event.target.value)} />
+                <button disabled={!commitMessage.trim() || isCommitting} onClick={() => void commitRepository()}>{isCommitting ? "Saving & committing…" : "Commit"}</button>
+                <div className="source-changes">{repositoryStatus.isLoading ? <span>Loading Git status…</span> : repositoryStatus.isError ? <span>Git status unavailable. <button onClick={() => void repositoryStatus.refetch()}>Retry</button></span> : repositoryStatus.data?.files.length ? repositoryStatus.data.files.map((file) => {
+                  const staged = file.indexStatus !== " " && file.indexStatus !== "?";
+                  return <div key={file.path}>
+                    <code title={`Index: ${file.indexStatus}; worktree: ${file.workingTreeStatus}`}>{file.indexStatus}{file.workingTreeStatus}</code>
+                    <span title={file.path}>{file.path}</span>
+                    <button aria-label={`${staged ? "Unstage" : "Stage"} ${file.path}`} title={staged ? "Unstage file" : "Stage file"} disabled={Boolean(repositoryPathBusy)} onClick={() => void setRepositoryStaged(file.path, !staged)}>{repositoryPathBusy === file.path ? "…" : staged ? "−" : "+"}</button>
+                  </div>;
+                }) : <span>No changes</span>}</div>
+                <div className="source-diff-heading"><strong>Diff</strong><label><input type="checkbox" checked={diffStaged} onChange={(event) => setDiffStaged(event.target.checked)} /> Staged</label></div>
+                {repositoryDiff.isLoading ? <span>Loading diff…</span> : repositoryDiff.isError ? <span>Diff unavailable.</span> : repositoryDiff.data?.patch ? <pre className="source-diff">{repositoryDiff.data.patch}</pre> : <span>No diff to display.</span>}
+              </>}
+              {sourceView === "history" && <div className="source-history">{repositoryHistory.isLoading ? <span>Loading history…</span> : repositoryHistory.isError ? <span>History unavailable. <button onClick={() => void repositoryHistory.refetch()}>Retry</button></span> : repositoryHistory.data?.length ? repositoryHistory.data.map((commit) => <button className="source-history-item" key={commit.sha} onClick={() => setSelectedCommitSha(commit.sha)}><code>{commit.shortSha}</code><span>{commit.message}</span><small>{commit.authorName} · {new Date(commit.committedAt).toLocaleString()}</small><i>View changes →</i></button>) : <span>No commits yet.</span>}</div>}
+              {sourceView === "branches" && <div className="source-branches">
+                <form onSubmit={(event) => { event.preventDefault(); void createRepositoryBranch(); }}>
+                  <label>New branch<input required aria-label="New branch name" placeholder="e.g. feature/login" value={newBranchName} onChange={(event) => setNewBranchName(event.target.value)} /></label>
+                  <button disabled={!newBranchName.trim() || Boolean(repositoryActionBusy)}>{repositoryActionBusy === "create" ? "Creating…" : "Create branch"}</button>
+                </form>
+                {!newBranchName.trim() && <small>Enter a branch name to enable creation.</small>}
+                {repositoryBranches.isLoading ? <span>Loading branches…</span> : repositoryBranches.isError ? <span>Branches unavailable. <button onClick={() => void repositoryBranches.refetch()}>Retry</button></span> : repositoryBranches.data?.length ? repositoryBranches.data.map((branch) => <div key={branch.name}><span>{branch.isCurrent ? "✓ " : ""}{branch.name}</span><button disabled={branch.isCurrent || Boolean(repositoryActionBusy)} onClick={() => void checkoutRepositoryBranch(branch.name)}>{repositoryActionBusy === branch.name ? "Checking out…" : branch.isCurrent ? "Current" : "Checkout"}</button></div>) : <span>No branches found.</span>}
+              </div>}
             </div>
           ) : tree.isLoading ? (
             <div className="tree-empty">
@@ -963,6 +1133,7 @@ export function FileExplorerPage() {
               <MonacoPane
                 projectId={projectId}
                 tab={tabs.activeTab}
+                readOnly={readOnly}
                 onSelectionChange={
                   handleSelectionChange
                 }
@@ -982,9 +1153,9 @@ export function FileExplorerPage() {
                   Open a file, upload source code, or add an image.
                 </p>
                 <div className="editor-empty-actions">
-                  <button onClick={() => actions.onCreate("file", createParentId)}>New File</button>
-                  <button onClick={() => fileInputRef.current?.click()}>Upload File</button>
-                  <button onClick={() => imageInputRef.current?.click()}>Upload Image</button>
+                  <button disabled={readOnly} onClick={() => actions.onCreate("file", createParentId)}>New File</button>
+                  <button disabled={readOnly} onClick={() => fileInputRef.current?.click()}>Upload File</button>
+                  <button disabled={readOnly} onClick={() => imageInputRef.current?.click()}>Upload Image</button>
                 </div>
               </div>
             )}
@@ -1047,8 +1218,14 @@ export function FileExplorerPage() {
             />
 
             <aside className="collaboration-panel">
-              {rightMode ===
-              "ai" ? (
+              {rightMode === "preview" ? (
+                <LivePreviewPanel
+                  projectId={projectId}
+                  activeTab={tabs.activeTab}
+                  tabs={tabs.openTabIds.map(id => tabs.tabs[id]).filter(Boolean)}
+                  disabled={readOnly}
+                />
+              ) : rightMode === "ai" ? (
                 <AiAssistantPanel
                   projectId={
                     projectId
@@ -1075,6 +1252,7 @@ export function FileExplorerPage() {
                   onApplySuggestion={
                     setAiSuggestion
                   }
+                  externalRequest={voiceAiRequest}
                 />
               ) : (
                 <>
@@ -1220,21 +1398,18 @@ export function FileExplorerPage() {
               deleting.id
             );
 
-            if (
-              tabs.tabs[
-                deleting.id
-              ]
-            ) {
-              tabs.closeTab(
-                deleting.id
-              );
-            }
+            const deletedPrefix = `${deleting.path.replace(/\/$/, "")}/`;
+            Object.values(useEditorStore.getState().tabs).forEach((tab) => {
+              if (tab.id === deleting.id || (deleting.nodeType === "Folder" && tab.path.startsWith(deletedPrefix))) tabs.closeTab(tab.id);
+            });
 
             setDeleting(
               undefined
             );
 
             await reloadTree();
+            await refreshRepository();
+            show(`${deleting.nodeType} deleted.`);
           } catch (error) {
             show(
               error instanceof Error
@@ -1245,6 +1420,17 @@ export function FileExplorerPage() {
           }
         }}
       />
+
+      <Dialog
+        open={Boolean(selectedCommitSha)}
+        title={selectedCommit ? `${selectedCommit.shortSha} · ${selectedCommit.message}` : "Commit changes"}
+        description={selectedCommit ? `${selectedCommit.authorName} · ${new Date(selectedCommit.committedAt).toLocaleString()}` : "Loading commit…"}
+        onClose={() => setSelectedCommitSha(undefined)}
+      >
+        <div className="commit-detail">
+          {commitDiff.isLoading ? <span role="status">Loading commit changes…</span> : commitDiff.isError ? <div><p>{commitDiff.error.message}</p><button onClick={() => void commitDiff.refetch()}>Retry</button></div> : commitDiff.data?.patch ? <pre>{commitDiff.data.patch}</pre> : <p>This commit contains no file changes.</p>}
+        </div>
+      </Dialog>
 
       <ConfirmDialog
         open={Boolean(

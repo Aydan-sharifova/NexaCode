@@ -5,7 +5,7 @@ namespace Coding.Application.Features.Notifications;
 
 public sealed record NotificationItem(Guid Id, Guid UserId, NotificationType Type, string Title, string Message, Guid? RelatedEntityId, string? RelatedEntityType, bool IsRead, DateTime CreatedAt, DateTime? ReadAt);
 public sealed record NotificationPage(IReadOnlyList<NotificationItem> Items, string? NextCursor, int UnreadCount);
-public sealed record CreateNotificationRequest(Guid UserId, NotificationType Type, string Title, string Message, Guid? RelatedEntityId = null, string? RelatedEntityType = null);
+public sealed record CreateNotificationRequest(Guid UserId, NotificationType Type, string Title, string Message, Guid? RelatedEntityId = null, string? RelatedEntityType = null, string? DeduplicationKey = null);
 public sealed record GetNotificationsQuery(string? Cursor, int Limit = 30, bool? IsRead = null) : IRequest<NotificationPage>;
 public sealed record MarkNotificationReadCommand(Guid NotificationId) : IRequest;
 public sealed record MarkAllNotificationsReadCommand : IRequest;

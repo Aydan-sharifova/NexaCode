@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { ErrorState, LoadingState } from "../components/AsyncState";
 import { usersApi, userKeys, type PublicProjectNode } from "../features/users/api";
+import { moderationApi } from "../features/moderation/api";
+import { useToast } from "../contexts/ToastContext";
+import { savedApi } from "../features/saved/api";
+import { queryKeys } from "../services/queryKeys";
 
 function orderedTree(nodes: PublicProjectNode[]) {
   const result: Array<PublicProjectNode & { depth: number }> = [];
@@ -16,9 +20,31 @@ function orderedTree(nodes: PublicProjectNode[]) {
 
 export function PublicProjectPage() {
   const { projectId = "" } = useParams();
+  const { show } = useToast();
+  const queryClient = useQueryClient();
   const details = useQuery({ queryKey: userKeys.publicProject(projectId), queryFn: () => usersApi.publicProject(projectId) });
   const tree = useQuery({ queryKey: [...userKeys.publicProject(projectId), "tree"], queryFn: () => usersApi.publicProjectTree(projectId) });
   const [selectedId, setSelectedId] = useState<string>();
+  const savedKey = queryKeys.saved.project(projectId);
+  const saved = useQuery({ queryKey: savedKey, queryFn: () => savedApi.list("Projects").then(x => x.projects.some(p => p.id === projectId)) });
+  const saveProject = useMutation({
+    mutationFn: () => savedApi.project(projectId, !saved.data),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: savedKey });
+      const previous = saved.data;
+      queryClient.setQueryData(savedKey, !previous);
+      return { previous };
+    },
+    onError: (error, _variables, context) => {
+      queryClient.setQueryData(savedKey, context?.previous);
+      show(error.message, "error");
+    },
+    onSuccess: value => {
+      queryClient.setQueryData(savedKey, value);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.saved.all });
+      show(value ? "Project saved." : "Project removed from saved.");
+    },
+  });
   const nodes = useMemo(() => orderedTree(tree.data ?? []), [tree.data]);
   const selectedFileId = nodes.some(node => node.id === selectedId && node.nodeType === "File") ? selectedId : undefined;
   useEffect(() => {
@@ -61,6 +87,8 @@ export function PublicProjectPage() {
           <span>{project.defaultLanguage || "Other"}</span>
           <span>Updated {new Date(project.updatedAt).toLocaleDateString()}</span>
           <span>{nodes.filter(node => node.nodeType === "File").length} files</span>
+          <button disabled={saveProject.isPending} onClick={() => saveProject.mutate()}>{saved.data ? "Saved" : "Save"}</button>
+          <button onClick={() => { const reason = window.prompt("Report reason: Spam, Harassment, Hate or abuse, Dangerous content, Privacy, Copyright, Impersonation, Other", "Spam")?.trim(); if (reason) void moderationApi.report("Project", project.id, reason).then(() => show("Project report submitted.")).catch(error => show(error.message, "error")); }}>Report</button>
         </div>
       </header>
 

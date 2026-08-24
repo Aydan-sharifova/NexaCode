@@ -19,7 +19,7 @@ public sealed class GetFileVersionsTool(AppDbContext db) : IAiTool
         Description: "Returns the version history for a file. Read-only.",
         RiskLevel: AiToolRiskLevel.ReadOnly,
         AllowedModes: new HashSet<AiAgentMode> { AiAgentMode.Ask, AiAgentMode.Plan, AiAgentMode.Agent, AiAgentMode.Review },
-        RequiredRoles: new HashSet<ProjectRole> { ProjectRole.Owner, ProjectRole.Admin, ProjectRole.Member },
+        RequiredRoles: new HashSet<ProjectRole> { ProjectRole.Owner, ProjectRole.Admin, ProjectRole.Maintainer, ProjectRole.Developer, ProjectRole.Viewer },
         InputType: typeof(GetFileVersionsInput));
 
     public AiToolDescriptor Descriptor => StaticDescriptor;

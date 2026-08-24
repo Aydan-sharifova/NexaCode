@@ -119,8 +119,7 @@ public sealed class AuthenticationService(
 
         if (user is null || !passwordService.Verify(user, request.Password))
             throw new UnauthorizedException("Invalid email or password.");
-        if (user.IsSuspended)
-            throw new UnauthorizedException("This account has been suspended. Contact support.");
+        await EnsureAccountActiveAsync(user, cancellationToken);
         if (!user.EmailVerifiedAt.HasValue)
             throw new UnauthorizedException("Verify your email address before signing in.");
 
@@ -192,8 +191,7 @@ public sealed class AuthenticationService(
 
         if (storedToken is null || storedToken.IsRevoked || storedToken.ExpireDate <= DateTime.UtcNow)
             throw new UnauthorizedException("The refresh token is invalid or expired.");
-        if (storedToken.User.IsSuspended)
-            throw new UnauthorizedException("This account has been suspended.");
+        await EnsureAccountActiveAsync(storedToken.User, cancellationToken);
 
         storedToken.IsRevoked = true;
         storedToken.UpdateAt = DateTime.UtcNow;
@@ -243,10 +241,30 @@ public sealed class AuthenticationService(
         VerifyEmailRequest request,
         CancellationToken cancellationToken)
     {
-        var token = await GetValidAccountTokenAsync(
-            request.Token,
-            AccountTokenType.EmailVerification,
-            cancellationToken);
+        var requestedEmail = string.IsNullOrWhiteSpace(request.Email)
+            ? null
+            : NormalizeEmail(request.Email);
+        var tokenHash = HashToken(request.Token);
+        var token = await context.AccountTokens
+            .Include(item => item.User)
+            .SingleOrDefaultAsync(item =>
+                item.TokenHash == tokenHash &&
+                item.Type == AccountTokenType.EmailVerification,
+                cancellationToken)
+            ?? throw new UnauthorizedException("The token is invalid or expired.");
+
+        if (requestedEmail is not null &&
+            !string.Equals(token.User.Email, requestedEmail, StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedException("The token is invalid or expired.");
+
+        // Reloading the same confirmation link must remain successful after the
+        // first request consumes it. This also protects against React StrictMode
+        // issuing the verification effect twice during local development.
+        if (token.ConsumedAt.HasValue && token.User.EmailVerifiedAt.HasValue)
+            return;
+
+        if (token.ConsumedAt.HasValue || token.ExpiresAt <= DateTime.UtcNow)
+            throw new UnauthorizedException("The token is invalid or expired.");
 
         token.ConsumedAt = DateTime.UtcNow;
         token.User.EmailVerifiedAt = DateTime.UtcNow;
@@ -309,6 +327,7 @@ public sealed class AuthenticationService(
             new(JwtRegisteredClaimNames.UniqueName, user.UserName),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new("sid", sessionId.ToString()),
+            new("token_version", user.TokenVersion.ToString()),
             new("email_verified", user.EmailVerifiedAt.HasValue ? "true" : "false")
         };
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
@@ -368,6 +387,36 @@ public sealed class AuthenticationService(
                 demoRole.HasValue,
                 demoRole?.ToString(),
                 demoRole.HasValue ? demoEnvironment.SampleProjectId : null));
+    }
+
+    private async Task EnsureAccountActiveAsync(User user, CancellationToken cancellationToken)
+    {
+        if (!user.IsSuspended) return;
+        var now = DateTime.UtcNow;
+        var activeBan = await context.UserBans
+            .Where(ban => ban.UserId == user.ID && ban.Status == UserBanStatus.Active)
+            .OrderByDescending(ban => ban.StartAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (activeBan is not null && !activeBan.IsPermanent && activeBan.ExpiresAt <= now)
+        {
+            activeBan.Status = UserBanStatus.Expired;
+            activeBan.EndedAt = now;
+            user.IsSuspended = false;
+            user.Status = UserStatus.Active;
+            user.SuspendedAt = null;
+            user.SuspensionReason = null;
+            user.TokenVersion++;
+            user.UpdatedAt = now;
+            await context.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        var until = activeBan?.IsPermanent == false && activeBan.ExpiresAt.HasValue
+            ? $" until {activeBan.ExpiresAt.Value:yyyy-MM-dd HH:mm} UTC"
+            : string.Empty;
+        var reason = string.IsNullOrWhiteSpace(user.SuspensionReason) ? string.Empty : $" Reason: {user.SuspensionReason}";
+        throw new UnauthorizedException($"Your account is suspended{until}.{reason}");
     }
 
     private async Task<AccountToken> GetValidAccountTokenAsync(

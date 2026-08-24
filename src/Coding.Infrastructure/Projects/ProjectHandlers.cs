@@ -15,6 +15,8 @@ using Coding.Services.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Coding.Application.Features.Repositories;
+using Coding.Application.Features.Activities;
+using Coding.Domain.Services;
 
 namespace Coding.Infrastructure.Projects;
 
@@ -34,6 +36,46 @@ internal static class ProjectAccess
             throw new ForbiddenException("Project management access is required.");
     }
 
+    public static void RequireRepositoryWrite(ProjectRole role)
+    {
+        if (role is not (ProjectRole.Owner or ProjectRole.Admin or ProjectRole.Maintainer or ProjectRole.Developer))
+            throw new ForbiddenException("Repository write access is required.");
+    }
+
+    public static void RequireWorkspaceWrite(ProjectRole role)
+    {
+        if (role is not (ProjectRole.Owner or ProjectRole.Admin or ProjectRole.Maintainer or ProjectRole.Developer))
+            throw new ForbiddenException("This project role has read-only workspace access.");
+    }
+
+    public static async Task<ProjectStatus> EnsureWorkspaceWritableAsync(
+        AppDbContext context, Guid projectId, ProjectRole role, CancellationToken cancellationToken)
+    {
+        var state = await context.Projects.AsNoTracking()
+            .Where(project => project.ID == projectId)
+            .Select(project => new { project.Status, project.DeadlineAt })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Project not found.");
+        var effective = ProjectLifecycle.EffectiveStatus(state.Status, state.DeadlineAt, DateTime.UtcNow);
+        if (effective != state.Status)
+            await context.Projects.Where(project => project.ID == projectId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(project => project.Status, effective), cancellationToken);
+        if (ProjectLifecycle.IsWorkspaceReadOnly(role, effective))
+            throw new ForbiddenException(effective == ProjectStatus.DeadlineExpired
+                ? "The project deadline has expired. Developer access is read-only."
+                : "This project is read-only for the current role or status.");
+        return effective;
+    }
+
+    public static async Task<ProjectRole> RequireWorkspaceWriteAsync(
+        AppDbContext context, Guid projectId, Guid userId, CancellationToken cancellationToken)
+    {
+        var role = await RequireMemberAsync(context, projectId, userId, cancellationToken);
+        RequireWorkspaceWrite(role);
+        await EnsureWorkspaceWritableAsync(context, projectId, role, cancellationToken);
+        return role;
+    }
+
     public static string HashToken(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }
 
@@ -49,14 +91,15 @@ public sealed class CreateProjectHandler(AppDbContext context, ICurrentUser curr
         {
             await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
             var now = DateTime.UtcNow;
-            var project = new Project { ID = Guid.NewGuid(), Name = request.Name.Trim(), Description = request.Description?.Trim(), DefaultLanguage = language, IsPublic = request.IsPublic, OwnerId = currentUser.UserId, CreatedAt = now, CreatAt = now };
+            var status = ProjectLifecycle.EffectiveStatus(ProjectStatus.Active, request.DeadlineAt, now);
+            var project = new Project { ID = Guid.NewGuid(), Name = request.Name.Trim(), Description = request.Description?.Trim(), DefaultLanguage = language, IsPublic = request.IsPublic, OwnerId = currentUser.UserId, CreatedAt = now, CreatAt = now, DeadlineAt = request.DeadlineAt, Status = status };
             project.Members.Add(new ProjectMember { ID = Guid.NewGuid(), Project = project, UserId = currentUser.UserId, Role = ProjectRole.Owner, JoinedAt = now, CreatAt = now });
             context.Conversations.Add(new Conversation { ID = Guid.NewGuid(), Type = ConversationType.ProjectChannel, Project = project, Name = project.Name, CreatedAt = now, UpdatedAt = now, Participants = [new ConversationParticipant { ID = Guid.NewGuid(), UserId = currentUser.UserId, JoinedAt = now }] });
             context.Projects.Add(project);
             await context.SaveChangesAsync(cancellationToken);
             await git.InitializeAsync(project.ID, "main", cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return new ProjectDetails(project.ID, project.Name, project.Description, project.DefaultLanguage, project.IsPublic, project.OwnerId, ProjectRole.Owner, project.CreatedAt, project.UpdateAt);
+            return new ProjectDetails(project.ID, project.Name, project.Description, project.DefaultLanguage, project.IsPublic, project.OwnerId, ProjectRole.Owner, project.CreatedAt, project.UpdateAt, project.DeadlineAt, status, false);
         });
     }
 }
@@ -74,7 +117,8 @@ public sealed class UpdateProjectHandler(AppDbContext context, ICurrentUser curr
         var channel = await context.Conversations.SingleOrDefaultAsync(item => item.ProjectId == request.ProjectId, cancellationToken);
         if (channel is not null) { channel.Name = project.Name; channel.UpdatedAt = project.UpdateAt.Value; }
         await context.SaveChangesAsync(cancellationToken);
-        return new(project.ID, project.Name, project.Description, project.DefaultLanguage, project.IsPublic, project.OwnerId, role, project.CreatedAt, project.UpdateAt);
+        var status = ProjectLifecycle.EffectiveStatus(project.Status, project.DeadlineAt, DateTime.UtcNow);
+        return new(project.ID, project.Name, project.Description, project.DefaultLanguage, project.IsPublic, project.OwnerId, role, project.CreatedAt, project.UpdateAt, project.DeadlineAt, status, ProjectLifecycle.IsWorkspaceReadOnly(role, status));
     }
 }
 
@@ -266,10 +310,19 @@ public sealed class RemoveProjectMemberHandler(AppDbContext context, ICurrentUse
 
 public sealed class ListMyProjectsHandler(AppDbContext context, ICurrentUser currentUser) : IRequestHandler<ListMyProjectsQuery, IReadOnlyList<ProjectListItem>>
 {
-    public async Task<IReadOnlyList<ProjectListItem>> Handle(ListMyProjectsQuery request, CancellationToken cancellationToken) =>
-        await context.ProjectMembers.AsNoTracking().Where(member => member.UserId == currentUser.UserId)
+    public async Task<IReadOnlyList<ProjectListItem>> Handle(ListMyProjectsQuery request, CancellationToken cancellationToken)
+    {
+        var rows = await context.ProjectMembers.AsNoTracking().Where(member => member.UserId == currentUser.UserId)
             .OrderByDescending(member => member.Project.UpdateAt ?? member.Project.CreatedAt)
-            .Select(member => new ProjectListItem(member.ProjectId, member.Project.Name, member.Project.Description, member.Project.DefaultLanguage, member.Role, member.Project.Members.Count, member.Project.CreatedAt)).ToListAsync(cancellationToken);
+            .Select(member => new { member.ProjectId, member.Project.Name, member.Project.Description, member.Project.DefaultLanguage, Role = member.Role, MemberCount = member.Project.Members.Count(projectMember => !projectMember.User.IsDeleted), member.Project.CreatedAt, member.Project.DeadlineAt, member.Project.Status })
+            .ToListAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+        return rows.Select(row =>
+        {
+            var status = ProjectLifecycle.EffectiveStatus(row.Status, row.DeadlineAt, now);
+            return new ProjectListItem(row.ProjectId, row.Name, row.Description, row.DefaultLanguage, row.Role, row.MemberCount, row.CreatedAt, row.DeadlineAt, status, ProjectLifecycle.IsWorkspaceReadOnly(row.Role, status));
+        }).ToList();
+    }
 }
 
 public sealed class GetProjectDetailsHandler(AppDbContext context, ICurrentUser currentUser) : IRequestHandler<GetProjectDetailsQuery, ProjectDetails>
@@ -277,9 +330,54 @@ public sealed class GetProjectDetailsHandler(AppDbContext context, ICurrentUser 
     public async Task<ProjectDetails> Handle(GetProjectDetailsQuery request, CancellationToken cancellationToken)
     {
         var role = await ProjectAccess.RequireMemberAsync(context, request.ProjectId, currentUser.UserId, cancellationToken);
-        return await context.Projects.AsNoTracking().Where(project => project.ID == request.ProjectId)
-            .Select(project => new ProjectDetails(project.ID, project.Name, project.Description, project.DefaultLanguage, project.IsPublic, project.OwnerId, role, project.CreatedAt, project.UpdateAt))
+        var project = await context.Projects.AsNoTracking().Where(project => project.ID == request.ProjectId)
+            .Select(project => new { project.ID, project.Name, project.Description, project.DefaultLanguage, project.IsPublic, project.OwnerId, project.CreatedAt, project.UpdateAt, project.DeadlineAt, project.Status })
             .SingleOrDefaultAsync(cancellationToken) ?? throw new NotFoundException("Project not found.");
+        var status = ProjectLifecycle.EffectiveStatus(project.Status, project.DeadlineAt, DateTime.UtcNow);
+        return new ProjectDetails(project.ID, project.Name, project.Description, project.DefaultLanguage, project.IsPublic, project.OwnerId, role, project.CreatedAt, project.UpdateAt, project.DeadlineAt, status, ProjectLifecycle.IsWorkspaceReadOnly(role, status));
+    }
+}
+
+public sealed class ExtendProjectDeadlineHandler(
+    AppDbContext context,
+    ICurrentUser currentUser,
+    INotificationService notifications,
+    IActivityLogger activity) : IRequestHandler<ExtendProjectDeadlineCommand, ProjectDeadlineState>
+{
+    public async Task<ProjectDeadlineState> Handle(ExtendProjectDeadlineCommand request, CancellationToken cancellationToken)
+    {
+        var isSuperAdmin = await context.UserRoles.AnyAsync(item =>
+            item.UserId == currentUser.UserId && item.Role.Name == SystemRoles.SuperAdmin, cancellationToken);
+        if (!isSuperAdmin) throw new ForbiddenException("Only SuperAdmin can extend an expired project deadline.");
+
+        var project = await context.Projects.Include(item => item.Members)
+            .SingleOrDefaultAsync(item => item.ID == request.ProjectId, cancellationToken)
+            ?? throw new NotFoundException("Project not found.");
+        var now = DateTime.UtcNow;
+        var effective = ProjectLifecycle.EffectiveStatus(project.Status, project.DeadlineAt, now);
+        if (effective != ProjectStatus.DeadlineExpired)
+            throw new ConflictException("Only an expired project deadline can be extended.");
+        if (!project.DeadlineAt.HasValue || request.DeadlineAt <= project.DeadlineAt.Value || request.DeadlineAt <= now)
+            throw new ConflictException("The new deadline must be later than both the current deadline and the current time.");
+
+        var previousDeadline = project.DeadlineAt.Value;
+        project.DeadlineAt = request.DeadlineAt;
+        project.Status = ProjectLifecycle.EffectiveStatus(ProjectStatus.Active, request.DeadlineAt, now);
+        project.UpdateAt = now;
+        await context.SaveChangesAsync(cancellationToken);
+
+        await activity.LogAsync(new(currentUser.UserId, project.ID, "ProjectDeadlineExtended", nameof(Project), project.ID,
+            $"Extended project deadline to {request.DeadlineAt:O}.", new Dictionary<string, object?>
+            {
+                ["previousDeadlineAt"] = previousDeadline,
+                ["deadlineAt"] = request.DeadlineAt
+            }), cancellationToken);
+        await notifications.CreateManyAsync(project.Members
+            .Where(member => member.UserId != currentUser.UserId)
+            .Select(member => new CreateNotificationRequest(member.UserId, NotificationType.ProjectDeadlineExtended,
+                "Project deadline extended", $"The deadline for '{project.Name}' was extended to {request.DeadlineAt:u}.", project.ID, nameof(Project))), cancellationToken);
+
+        return new(project.ID, request.DeadlineAt, project.Status);
     }
 }
 
@@ -288,7 +386,7 @@ public sealed class ListProjectMembersHandler(AppDbContext context, ICurrentUser
     public async Task<IReadOnlyList<ProjectMemberDetails>> Handle(ListProjectMembersQuery request, CancellationToken cancellationToken)
     {
         await ProjectAccess.RequireMemberAsync(context, request.ProjectId, currentUser.UserId, cancellationToken);
-        return await context.ProjectMembers.AsNoTracking().Where(member => member.ProjectId == request.ProjectId).OrderBy(member => member.Role)
+        return await context.ProjectMembers.AsNoTracking().Where(member => member.ProjectId == request.ProjectId && !member.User.IsDeleted).OrderBy(member => member.Role)
             .Select(member => new ProjectMemberDetails(member.UserId, member.User.PublicId, member.User.FirstName + " " + member.User.LastName, member.User.Email, member.User.AvatarUrl, member.Role, member.JoinedAt)).ToListAsync(cancellationToken);
     }
 }

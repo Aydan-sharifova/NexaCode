@@ -39,9 +39,12 @@ public sealed class NotificationService(AppDbContext db, INotificationRealtimePu
             .Where(item => item.UserId == request.UserId && item.Type == request.Type)
             .Select(item => (bool?)item.InAppEnabled).SingleOrDefaultAsync(ct) ?? true;
         if (!enabled) return null;
-        var entity = ToEntity(request);
+        var key=NotificationDeduplication.Key(request,DateTime.UtcNow);
+        var existing=await db.Notifications.AsNoTracking().SingleOrDefaultAsync(x=>x.UserId==request.UserId&&x.DeduplicationKey==key,ct);
+        if(existing is not null)return ToItem(existing);
+        var entity = ToEntity(request,key);
         db.Notifications.Add(entity);
-        await db.SaveChangesAsync(ct);
+        try{await db.SaveChangesAsync(ct);}catch(DbUpdateException){db.Entry(entity).State=EntityState.Detached;existing=await db.Notifications.AsNoTracking().SingleOrDefaultAsync(x=>x.UserId==request.UserId&&x.DeduplicationKey==key,ct);if(existing is not null)return ToItem(existing);throw;}
         var item = ToItem(entity);
         await realtime.NotificationReceivedAsync(item, ct);
         await realtime.UnreadCountUpdatedAsync(request.UserId, await UnreadCount(request.UserId, ct), ct);
@@ -54,9 +57,13 @@ public sealed class NotificationService(AppDbContext db, INotificationRealtimePu
         if (distinct.Length == 0) return [];
         var disabled = await db.UserNotificationPreferences.AsNoTracking().Where(item => !item.InAppEnabled)
             .Select(item => new { item.UserId, item.Type }).ToListAsync(ct);
-        var entities = distinct.Where(request => !disabled.Any(item => item.UserId == request.UserId && item.Type == request.Type)).Select(ToEntity).ToArray();
+        var now=DateTime.UtcNow;
+        var candidates=distinct.Where(request => !disabled.Any(item => item.UserId == request.UserId && item.Type == request.Type)).Select(request=>(Request:request,Key:NotificationDeduplication.Key(request,now))).DistinctBy(x=>x.Key).ToArray();
+        var keys=candidates.Select(x=>x.Key).ToArray(); var existingKeys=(await db.Notifications.AsNoTracking().Where(x=>keys.Contains(x.DeduplicationKey!)).Select(x=>x.DeduplicationKey!).ToListAsync(ct)).ToHashSet();
+        var entities = candidates.Where(x=>!existingKeys.Contains(x.Key)).Select(x=>ToEntity(x.Request,x.Key)).ToArray();
+        if(entities.Length==0)return [];
         db.Notifications.AddRange(entities);
-        await db.SaveChangesAsync(ct);
+        try{await db.SaveChangesAsync(ct);}catch(DbUpdateException){foreach(var entity in entities)db.Entry(entity).State=EntityState.Detached;var raced=await db.Notifications.AsNoTracking().Where(x=>keys.Contains(x.DeduplicationKey!)).ToListAsync(ct);if(raced.Count>0)return raced.Select(ToItem).ToArray();throw;}
         var items = entities.Select(ToItem).ToArray();
         foreach (var item in items) await realtime.NotificationReceivedAsync(item, ct);
         foreach (var userId in entities.Select(item => item.UserId).Distinct()) await realtime.UnreadCountUpdatedAsync(userId, await UnreadCount(userId, ct), ct);
@@ -80,7 +87,7 @@ public sealed class NotificationService(AppDbContext db, INotificationRealtimePu
     }
 
     private Task<int> UnreadCount(Guid userId, CancellationToken ct) => db.Notifications.CountAsync(item => item.UserId == userId && !item.IsRead, ct);
-    private static Notification ToEntity(CreateNotificationRequest request) => new() { ID = Guid.NewGuid(), UserId = request.UserId, Type = request.Type, Title = request.Title, Message = request.Message, RelatedEntityId = request.RelatedEntityId, RelatedEntityType = request.RelatedEntityType, IsRead = false, CreatedAt = DateTime.UtcNow, CreatAt = DateTime.UtcNow };
+    private static Notification ToEntity(CreateNotificationRequest request,string key) => new() { ID = Guid.NewGuid(), UserId = request.UserId, Type = request.Type, Title = request.Title, Message = request.Message, RelatedEntityId = request.RelatedEntityId, RelatedEntityType = request.RelatedEntityType, DeduplicationKey=key, IsRead = false, CreatedAt = DateTime.UtcNow, CreatAt = DateTime.UtcNow };
     private static NotificationItem ToItem(Notification item) => new(item.ID, item.UserId, item.Type, item.Title, item.Message, item.RelatedEntityId, item.RelatedEntityType, item.IsRead, item.CreatedAt, item.ReadAt);
 }
 

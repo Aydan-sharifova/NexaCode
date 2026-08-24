@@ -21,11 +21,17 @@ internal static partial class KanbanSupport
     {
         var task = await db.ProjectTasks.Include(x => x.Assignees).Include(x => x.Comments).SingleOrDefaultAsync(x => x.ID == taskId, ct) ?? throw new NotFoundException("Task not found.");
         var role = await ProjectAccess.RequireMemberAsync(db, task.ProjectId, userId, ct);
+        await ProjectAccess.EnsureWorkspaceWritableAsync(db, task.ProjectId, role, ct);
         return (task, role);
     }
     public static void RequireEditor(ProjectTask task, ProjectRole role, Guid userId)
     {
+        RequireContributor(role);
         if (task.CreatedByUserId != userId && role is not (ProjectRole.Owner or ProjectRole.Admin)) throw new ForbiddenException("Only the task creator or a project manager may edit this task.");
+    }
+    public static void RequireContributor(ProjectRole role)
+    {
+        if (role == ProjectRole.Viewer) throw new ForbiddenException("Viewer access is read-only.");
     }
     public static void RequireManager(ProjectRole role)
     {
@@ -59,6 +65,7 @@ public sealed class CreateTaskHandler(AppDbContext db, ICurrentUser user, IActiv
     public async Task<ProjectTaskDto> Handle(CreateTaskCommand r, CancellationToken ct)
     {
         var role = await ProjectAccess.RequireMemberAsync(db, r.ProjectId, user.UserId, ct);
+        await ProjectAccess.EnsureWorkspaceWritableAsync(db, r.ProjectId, role, ct);
         KanbanSupport.RequireOwner(role);
         var now = DateTime.UtcNow; var position = await KanbanSupport.Position(db, r.ProjectId, ProjectTaskStatus.Todo, null, null, ct);
         var task = new ProjectTask { ID = Guid.NewGuid(), ProjectId = r.ProjectId, Title = r.Title.Trim(), Description = r.Description?.Trim(), Status = ProjectTaskStatus.Todo, Priority = r.Priority, Position = position, DueDate = r.DueDate, CreatedByUserId = user.UserId, CreatedAt = now, UpdatedAt = now, CreatAt = now };
@@ -98,7 +105,7 @@ public sealed class AddTaskCommentHandler(AppDbContext db, ICurrentUser user, IN
 {
     public async Task<TaskCommentDto> Handle(AddTaskCommentCommand r, CancellationToken ct)
     {
-        var (task, _) = await KanbanSupport.RequireTask(db, r.TaskId, user.UserId, ct); var names = KanbanSupport.Mentions(r.Content); var mentioned = names.Length == 0 ? [] : await db.Users.Where(x => names.Contains(x.UserName) && x.ID != user.UserId).Select(x => new { x.ID, x.UserName }).ToListAsync(ct); if (mentioned.Count != names.Length) throw new FluentValidation.ValidationException("One or more mentioned users do not exist."); var allowed = await db.ProjectMembers.CountAsync(x => x.ProjectId == task.ProjectId && mentioned.Select(m => m.ID).Contains(x.UserId), ct); if (allowed != mentioned.Count) throw new ForbiddenException("A mentioned user is not a project member.");
+        var (task, role) = await KanbanSupport.RequireTask(db, r.TaskId, user.UserId, ct); KanbanSupport.RequireContributor(role); var names = KanbanSupport.Mentions(r.Content); var mentioned = names.Length == 0 ? [] : await db.Users.Where(x => names.Contains(x.UserName) && x.ID != user.UserId).Select(x => new { x.ID, x.UserName }).ToListAsync(ct); if (mentioned.Count != names.Length) throw new FluentValidation.ValidationException("One or more mentioned users do not exist."); var allowed = await db.ProjectMembers.CountAsync(x => x.ProjectId == task.ProjectId && mentioned.Select(m => m.ID).Contains(x.UserId), ct); if (allowed != mentioned.Count) throw new ForbiddenException("A mentioned user is not a project member.");
         var comment = new TaskComment { ID = Guid.NewGuid(), TaskId = task.ID, UserId = user.UserId, Content = r.Content.Trim(), CreatedAt = DateTime.UtcNow }; db.TaskComments.Add(comment); await db.SaveChangesAsync(ct);
         if (mentioned.Count > 0) await notifications.CreateManyAsync(mentioned.Select(x => new CreateNotificationRequest(x.ID, NotificationType.UserMention, "Mentioned in a task comment", r.Content, task.ID, nameof(ProjectTask))), ct);
         return await db.TaskComments.AsNoTracking().Where(x => x.ID == comment.ID).Select(x => new TaskCommentDto(x.ID, x.UserId, x.User.FirstName + " " + x.User.LastName, x.User.AvatarUrl, x.Content, x.CreatedAt)).SingleAsync(ct);
@@ -106,7 +113,7 @@ public sealed class AddTaskCommentHandler(AppDbContext db, ICurrentUser user, IN
 }
 public sealed class DeleteTaskCommentHandler(AppDbContext db, ICurrentUser user) : IRequestHandler<DeleteTaskCommentCommand>
 {
-    public async Task Handle(DeleteTaskCommentCommand r, CancellationToken ct) { var comment = await db.TaskComments.Include(x => x.Task).SingleOrDefaultAsync(x => x.ID == r.CommentId, ct) ?? throw new NotFoundException("Comment not found."); var role = await ProjectAccess.RequireMemberAsync(db, comment.Task.ProjectId, user.UserId, ct); if (comment.UserId != user.UserId && role is not (ProjectRole.Owner or ProjectRole.Admin)) throw new ForbiddenException("You can delete only your own comments."); comment.IsDeleted = true; comment.DeletedAt = comment.UpdateAt = DateTime.UtcNow; await db.SaveChangesAsync(ct); }
+    public async Task Handle(DeleteTaskCommentCommand r, CancellationToken ct) { var comment = await db.TaskComments.Include(x => x.Task).SingleOrDefaultAsync(x => x.ID == r.CommentId, ct) ?? throw new NotFoundException("Comment not found."); var role = await ProjectAccess.RequireMemberAsync(db, comment.Task.ProjectId, user.UserId, ct); await ProjectAccess.EnsureWorkspaceWritableAsync(db, comment.Task.ProjectId, role, ct); KanbanSupport.RequireContributor(role); if (comment.UserId != user.UserId && role is not (ProjectRole.Owner or ProjectRole.Admin)) throw new ForbiddenException("You can delete only your own comments."); comment.IsDeleted = true; comment.DeletedAt = comment.UpdateAt = DateTime.UtcNow; await db.SaveChangesAsync(ct); }
 }
 public sealed class GetProjectBoardHandler(AppDbContext db, ICurrentUser user) : IRequestHandler<GetProjectBoardQuery, IReadOnlyList<ProjectTaskDto>>
 {

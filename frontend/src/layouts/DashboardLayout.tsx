@@ -82,11 +82,21 @@ export function DashboardLayout() {
         <div className="sidebar-brand"><span className="brand-mark">N</span><span>NexaCode</span>{isDemo && <b className="sidebar-demo-label">Demo</b>}</div>
         <nav className="sidebar-nav" aria-label={t("openNavigation")}>
           <p>{t("workspace")}</p>
-          {navItems.map((item) => <NavLink key={item.label} to={item.path} end={item.path === "/dashboard"} onClick={() => setSidebarOpen(false)}><Icon name={item.icon} />{t(item.label)}</NavLink>)}
-          {projectId && <><p>PROJECT TOOLS</p><NavLink to={`/projects/${projectId}/workspace`}><Icon name="code" />Workspace</NavLink><NavLink to={`/projects/${projectId}/board`}><Icon name="check" />Tasks</NavLink><NavLink to={`/projects/${projectId}/architecture`}><Icon name="activity" />Architecture</NavLink><NavLink to={`/projects/${projectId}/database`}><Icon name="dashboard" />Database</NavLink><NavLink to={`/projects/${projectId}/api`}><Icon name="code" />API</NavLink><NavLink to={`/projects/${projectId}/versions`}><Icon name="trend" />Versions</NavLink><NavLink to={`/projects/${projectId}/approvals`}><Icon name="check" />AI approvals</NavLink></>}
+          {navItems.map((item, index) => <span className="sidebar-nav-entry" key={item.label}><NavLink to={item.path} end={item.path === "/dashboard"} onClick={() => setSidebarOpen(false)}><Icon name={item.icon} />{t(item.label)}</NavLink>{index === 0 && <NavLink to="/feed" onClick={() => setSidebarOpen(false)}><Icon name="activity" />Feed</NavLink>}</span>)}
+          <NavLink to="/marketplace" onClick={() => setSidebarOpen(false)}><Icon name="trend" />Marketplace</NavLink>
+          <NavLink to="/discover" onClick={() => setSidebarOpen(false)}><Icon name="search" />Discover</NavLink>
+          <NavLink to="/saved" onClick={() => setSidebarOpen(false)}><Icon name="check" />Saved</NavLink>
+          <NavLink to="/live-rooms" onClick={() => setSidebarOpen(false)}><Icon name="team" />Live rooms</NavLink>
+          <NavLink to="/achievements" onClick={() => setSidebarOpen(false)}><Icon name="check" />Achievements</NavLink>
+          <NavLink to="/mentor" onClick={() => setSidebarOpen(false)}><Icon name="activity" />AI Mentor</NavLink>
+          <NavLink to="/planner" onClick={() => setSidebarOpen(false)}><Icon name="code" />Project Planner</NavLink>
+          {projectId && <><p>PROJECT TOOLS</p><NavLink to={`/projects/${projectId}/workspace`}><Icon name="code" />Workspace</NavLink><NavLink to={`/projects/${projectId}/board`}><Icon name="check" />Tasks</NavLink><NavLink to={`/projects/${projectId}/architecture`}><Icon name="activity" />Architecture</NavLink><NavLink to={`/projects/${projectId}/knowledge`}><Icon name="trend" />Knowledge graph</NavLink><NavLink to={`/projects/${projectId}/debugging`}><Icon name="activity" />Debugging timeline</NavLink><NavLink to={`/projects/${projectId}/autonomous-tests`}><Icon name="check" />Test agent</NavLink><NavLink to={`/projects/${projectId}/database`}><Icon name="dashboard" />Database</NavLink><NavLink to={`/projects/${projectId}/api`}><Icon name="code" />API</NavLink><NavLink to={`/projects/${projectId}/versions`}><Icon name="trend" />Versions</NavLink><NavLink to={`/projects/${projectId}/approvals`}><Icon name="check" />AI approvals</NavLink></>}
+          {projectId && <><NavLink to={`/projects/${projectId}/screenshot-code`}><Icon name="code" />Screenshot to code</NavLink><NavLink to={`/projects/${projectId}/ui-generator`}><Icon name="activity" />AI UI Generator</NavLink></>}
+          {user?.roles.some((role) => ["SuperAdmin", "Admin", "Moderator"].includes(role)) && <NavLink to="/moderation" onClick={() => setSidebarOpen(false)}><Icon name="check" />Moderation</NavLink>}
           {user?.roles.some((role) => ["SuperAdmin", "Admin"].includes(role)) && <><NavLink to="/admin" onClick={() => setSidebarOpen(false)}><Icon name="settings" />{t("admin")}</NavLink><NavLink to="/admin/activity" onClick={() => setSidebarOpen(false)}><Icon name="activity" />{t("activity")}</NavLink></>}
           <p>{t("manage")}</p>
           <NavLink to="/settings"><Icon name="settings" />{t("settings")}</NavLink>
+          <NavLink to="/settings/blocked"><Icon name="team" />Blocked users</NavLink>
           <NavLink to="/help"><Icon name="help" />{t("help")}</NavLink>
         </nav>
         <div className="sidebar-upgrade"><span><Icon name="trend" /></span><strong>{pt("unlockInsights")}</strong><p>{pt("upgradeWorkspace")}</p><button>{pt("viewPlans")}</button></div>

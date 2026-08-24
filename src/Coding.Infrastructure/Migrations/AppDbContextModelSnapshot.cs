@@ -9,7 +9,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Coding.Migrations
+namespace Coding.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     partial class AppDbContextModelSnapshot : ModelSnapshot
@@ -21,6 +21,7 @@ namespace Coding.Migrations
                 .HasAnnotation("ProductVersion", "8.0.28")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Coding.Models.AIRequest", b =>
@@ -153,6 +154,224 @@ namespace Coding.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("AccountTokens");
+                });
+
+            modelBuilder.Entity("Coding.Models.Achievement", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "SortOrder");
+
+                    b.ToTable("Achievements");
+
+                    b.HasData(
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Category = "Building",
+                            Code = "first-project",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Created your first project.",
+                            Icon = "folder",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 50,
+                            SortOrder = 1,
+                            Title = "First Project"
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000002"),
+                            Category = "Building",
+                            Code = "first-commit",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Created your first verified repository commit.",
+                            Icon = "commit",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 50,
+                            SortOrder = 2,
+                            Title = "First Commit"
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000003"),
+                            Category = "Collaboration",
+                            Code = "first-pr",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Opened your first pull request.",
+                            Icon = "pull-request",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 60,
+                            SortOrder = 3,
+                            Title = "First Pull Request"
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000004"),
+                            Category = "Collaboration",
+                            Code = "first-merge",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Authored a pull request that was merged.",
+                            Icon = "merge",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 80,
+                            SortOrder = 4,
+                            Title = "First Merge"
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000005"),
+                            Category = "Delivery",
+                            Code = "first-deployment",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Completed a verified deployment.",
+                            Icon = "rocket",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 100,
+                            SortOrder = 5,
+                            Title = "First Deployment"
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000006"),
+                            Category = "Community",
+                            Code = "first-follower",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Earned your first follower.",
+                            Icon = "user-plus",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 30,
+                            SortOrder = 6,
+                            Title = "First Follower"
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000007"),
+                            Category = "Community",
+                            Code = "ten-followers",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Earned ten distinct followers.",
+                            Icon = "users",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 80,
+                            SortOrder = 7,
+                            Title = "10 Followers"
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000008"),
+                            Category = "Community",
+                            Code = "community-contributor",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Contributed posts and helpful comments across multiple days.",
+                            Icon = "community",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 100,
+                            SortOrder = 8,
+                            Title = "Community Contributor"
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-000000000009"),
+                            Category = "Quality",
+                            Code = "bug-hunter",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Submitted three changes-requested reviews on other developers' pull requests.",
+                            Icon = "bug",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 120,
+                            SortOrder = 9,
+                            Title = "Bug Hunter"
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-00000000000a"),
+                            Category = "AI",
+                            Code = "ai-builder",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Completed three bounded AI agent runs.",
+                            Icon = "sparkles",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 120,
+                            SortOrder = 10,
+                            Title = "AI Builder"
+                        },
+                        new
+                        {
+                            ID = new Guid("10000000-0000-0000-0000-00000000000b"),
+                            Category = "Community",
+                            Code = "open-source-contributor",
+                            CreatAt = new DateTime(2026, 8, 22, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Merged a contribution into another owner's public project.",
+                            Icon = "globe",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Points = 150,
+                            SortOrder = 11,
+                            Title = "Open Source Contributor"
+                        });
                 });
 
             modelBuilder.Entity("Coding.Models.ActivityLog", b =>
@@ -706,6 +925,81 @@ namespace Coding.Migrations
                     b.ToTable("AiToolCalls");
                 });
 
+            modelBuilder.Entity("Coding.Models.AiUiGeneration", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Analysis")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)");
+
+                    b.Property<DateTime?>("AppliedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FilesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IncludeSampleData")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ModelName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ModelProvider")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("PreviewHtml")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Prompt")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetSnapshotsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ProjectId", "GeneratedAt");
+
+                    b.ToTable("AiUiGenerations");
+                });
+
             modelBuilder.Entity("Coding.Models.AiUsageRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -759,6 +1053,183 @@ namespace Coding.Migrations
                     b.HasIndex("UserId", "CreatedAt");
 
                     b.ToTable("AiUsageRecords");
+                });
+
+            modelBuilder.Entity("Coding.Models.AutonomousTestIteration", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DurationMs")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ExitCode")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FailureAnalysis")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("GeneratedTestSource")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Outcome")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Stderr")
+                        .HasMaxLength(32000)
+                        .HasColumnType("character varying(32000)");
+
+                    b.Property<string>("Stdout")
+                        .HasMaxLength(32000)
+                        .HasColumnType("character varying(32000)");
+
+                    b.Property<bool>("TimedOut")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("RunId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("AutonomousTestIterations");
+                });
+
+            modelBuilder.Entity("Coding.Models.AutonomousTestRun", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Analysis")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime?>("AppliedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("AppliedFileVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CompletedIterations")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FinalSummary")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Goal")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("MaximumIterations")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ModelProvider")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("OriginalConcurrencyToken")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("OriginalSourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProposedSource")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProposedSourceHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SuggestedFix")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkspaceNodeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("WorkspaceNodeId");
+
+                    b.HasIndex("ProjectId", "StartedAt");
+
+                    b.ToTable("AutonomousTestRuns");
                 });
 
             modelBuilder.Entity("Coding.Models.ChatAttachment", b =>
@@ -1028,6 +1499,70 @@ namespace Coding.Migrations
                     b.ToTable("CollaborativeDocumentUpdates");
                 });
 
+            modelBuilder.Entity("Coding.Models.ContentReport", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedModeratorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("ReporterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("AssignedModeratorId");
+
+                    b.HasIndex("State", "CreatAt");
+
+                    b.HasIndex("TargetType", "TargetId");
+
+                    b.HasIndex("ReporterId", "TargetType", "TargetId")
+                        .IsUnique()
+                        .HasFilter("\"State\" IN ('Pending', 'Reviewing')");
+
+                    b.ToTable("ContentReports");
+                });
+
             modelBuilder.Entity("Coding.Models.Conversation", b =>
                 {
                     b.Property<Guid>("ID")
@@ -1122,10 +1657,362 @@ namespace Coding.Migrations
                     b.ToTable("ConversationParticipants");
                 });
 
+            modelBuilder.Entity("Coding.Models.DebuggingEvidence", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CommitSha")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("Confidence")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EvidenceAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("FileVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("IncidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("WorkspaceNodeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("IncidentId", "Fingerprint")
+                        .IsUnique();
+
+                    b.ToTable("DebuggingEvidence");
+                });
+
+            modelBuilder.Entity("Coding.Models.DebuggingExecutionObservation", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DurationMs")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ExecutedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ExitCode")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<bool>("Succeeded")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("TimedOut")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("WorkspaceNodeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("WorkspaceNodeId");
+
+                    b.HasIndex("ProjectId", "WorkspaceNodeId", "ExecutedAt");
+
+                    b.ToTable("DebuggingExecutionObservations");
+                });
+
+            modelBuilder.Entity("Coding.Models.DebuggingIncident", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AnalyzedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DurationMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ErrorSummary")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ExecutionObservationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("ExitCode")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("LikelyRegression")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ModelName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ModelProvider")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("RegressionConfidence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RelevantCommitSha")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("RootCause")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("StackTrace")
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Stderr")
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)");
+
+                    b.Property<string>("Stdout")
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)");
+
+                    b.Property<string>("SuggestedFix")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<bool>("TimedOut")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("WorkspaceNodeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("CreatedById");
+
+                    b.HasIndex("ExecutionObservationId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceNodeId");
+
+                    b.HasIndex("ProjectId", "OccurredAt");
+
+                    b.ToTable("DebuggingIncidents");
+                });
+
+            modelBuilder.Entity("Coding.Models.DeveloperProfile", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AreFollowersPublic")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Bio")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("CoverImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("ExperienceLevel")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("GitHubUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Headline")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<bool>("IsActivityPublic")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsProfilePublic")
+                        .HasColumnType("boolean");
+
+                    b.Property<string[]>("LearningTopics")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasDefaultValueSql("ARRAY[]::text[]");
+
+                    b.Property<string>("LinkedInUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("PortfolioUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("PrimaryRole")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string[]>("Skills")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasDefaultValueSql("ARRAY[]::text[]");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("WebsiteUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("DeveloperProfiles");
+                });
+
             modelBuilder.Entity("Coding.Models.FileContent", b =>
                 {
                     b.Property<Guid>("NodeId")
                         .HasColumnType("uuid");
+
+                    b.Property<byte[]>("BinaryContent")
+                        .HasColumnType("bytea");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -1141,6 +2028,9 @@ namespace Coding.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<bool>("IsBinary")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1213,6 +2103,9 @@ namespace Coding.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<byte[]>("BinaryContent")
+                        .HasColumnType("bytea");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1230,6 +2123,9 @@ namespace Coding.Migrations
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsBinary")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -1327,9 +2223,10 @@ namespace Coding.Migrations
 
                     b.HasKey("ID");
 
-                    b.HasIndex("ProjectId");
-
                     b.HasIndex("UserId");
+
+                    b.HasIndex("ProjectId", "CommitHash")
+                        .IsUnique();
 
                     b.ToTable("GitCommits");
                 });
@@ -1377,6 +2274,459 @@ namespace Coding.Migrations
                     b.HasIndex("WorkspaceId");
 
                     b.ToTable("Invitations");
+                });
+
+            modelBuilder.Entity("Coding.Models.KnowledgeGraphEdge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Confidence")
+                        .HasPrecision(4, 3)
+                        .HasColumnType("numeric(4,3)");
+
+                    b.Property<string>("Evidence")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("FromNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("SnapshotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ToNodeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromNodeId");
+
+                    b.HasIndex("ToNodeId");
+
+                    b.HasIndex("SnapshotId", "ToNodeId");
+
+                    b.HasIndex("SnapshotId", "FromNodeId", "ToNodeId", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("KnowledgeGraphEdges");
+                });
+
+            modelBuilder.Entity("Coding.Models.KnowledgeGraphNode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(700)
+                        .HasColumnType("character varying(700)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int?>("Line")
+                        .HasColumnType("integer");
+
+                    b.Property<JsonDocument>("Metadata")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Path")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("SnapshotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SourceFileId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceFileId");
+
+                    b.HasIndex("SnapshotId", "Key")
+                        .IsUnique();
+
+                    b.HasIndex("SnapshotId", "Kind");
+
+                    b.HasIndex("SnapshotId", "SourceFileId");
+
+                    b.ToTable("KnowledgeGraphNodes");
+                });
+
+            modelBuilder.Entity("Coding.Models.KnowledgeGraphSnapshot", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EdgeCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("FileCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("IndexedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("IndexedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsCurrent")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("NodeCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_KnowledgeGraphSnapshots_CurrentProject")
+                        .HasFilter("\"IsCurrent\"");
+
+                    b.HasIndex("ProjectId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("KnowledgeGraphSnapshots");
+                });
+
+            modelBuilder.Entity("Coding.Models.LiveCodingRoom", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChallengeType")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int?>("DurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProblemStatement")
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)");
+
+                    b.Property<string>("ProblemTitle")
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ScheduledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("StateVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("ProjectId", "Status");
+
+                    b.HasIndex("OwnerId", "Status", "ScheduledAt");
+
+                    b.ToTable("LiveCodingRooms");
+                });
+
+            modelBuilder.Entity("Coding.Models.MarketplaceInstallation", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ApprovedPermissionsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DisabledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("InstalledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("InstalledById")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MarketplaceItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MarketplaceItemVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("InstalledById");
+
+                    b.HasIndex("MarketplaceItemId");
+
+                    b.HasIndex("MarketplaceItemVersionId");
+
+                    b.HasIndex("ProjectId", "MarketplaceItemId")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId", "Status");
+
+                    b.ToTable("MarketplaceInstallations");
+                });
+
+            modelBuilder.Entity("Coding.Models.MarketplaceItem", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int>("DownloadCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LikeCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TagsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.HasIndex("AuthorId", "UpdatedAt");
+
+                    b.HasIndex("Status", "Category", "UpdatedAt");
+
+                    b.ToTable("MarketplaceItems");
+                });
+
+            modelBuilder.Entity("Coding.Models.MarketplaceItemVersion", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Changelog")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Checksum")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ManifestJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("MarketplaceItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PermissionsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("MarketplaceItemId", "Version")
+                        .IsUnique();
+
+                    b.HasIndex("MarketplaceItemId", "IsPublished", "PublishedAt");
+
+                    b.ToTable("MarketplaceItemVersions");
+                });
+
+            modelBuilder.Entity("Coding.Models.MarketplaceLike", b =>
+                {
+                    b.Property<Guid>("MarketplaceItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("MarketplaceItemId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("MarketplaceLikes");
                 });
 
             modelBuilder.Entity("Coding.Models.Message", b =>
@@ -1440,6 +2790,59 @@ namespace Coding.Migrations
                     b.ToTable("MessageReadReceipts");
                 });
 
+            modelBuilder.Entity("Coding.Models.ModerationActionRecord", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ModeratorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NewState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("PreviousState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("ModeratorId");
+
+                    b.HasIndex("ReportId", "CreatAt");
+
+                    b.ToTable("ModerationActionRecords");
+                });
+
             modelBuilder.Entity("Coding.Models.Notification", b =>
                 {
                     b.Property<Guid>("ID")
@@ -1451,6 +2854,10 @@ namespace Coding.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeduplicationKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1491,6 +2898,10 @@ namespace Coding.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("ID");
+
+                    b.HasIndex("UserId", "DeduplicationKey")
+                        .IsUnique()
+                        .HasFilter("\"DeduplicationKey\" IS NOT NULL");
 
                     b.HasIndex("UserId", "IsRead", "CreatedAt");
 
@@ -1616,6 +3027,16 @@ namespace Coding.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DatabaseProvider")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("DatabaseSchemaJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime?>("DeadlineAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("DefaultLanguage")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1642,6 +3063,24 @@ namespace Coding.Migrations
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ProtectedBranch")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasDefaultValue("main");
+
+                    b.Property<bool>("RequirePassingPullRequestTests")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("RequiredPullRequestApprovals")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("UpdateAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1654,7 +3093,104 @@ namespace Coding.Migrations
 
                     b.HasIndex("WorkspaceId");
 
-                    b.ToTable("Projects");
+                    b.HasIndex("Status", "DeadlineAt");
+
+                    b.ToTable("Projects", t =>
+                        {
+                            t.HasCheckConstraint("CK_Projects_RequiredPullRequestApprovals", "\"RequiredPullRequestApprovals\" BETWEEN 1 AND 5");
+                        });
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectDeployment", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CommitSha")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DeployedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DeployedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("DeployedById");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique()
+                        .HasFilter("\"IsActive\" = TRUE AND \"IsDeleted\" = FALSE");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("ProjectDeployments");
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectDeploymentFile", b =>
+                {
+                    b.Property<Guid>("DeploymentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Path")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("DeploymentId", "Path");
+
+                    b.ToTable("ProjectDeploymentFiles");
                 });
 
             modelBuilder.Entity("Coding.Models.ProjectInvitation", b =>
@@ -1717,6 +3253,68 @@ namespace Coding.Migrations
                     b.ToTable("ProjectInvitations");
                 });
 
+            modelBuilder.Entity("Coding.Models.ProjectIssue", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MilestoneId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("MilestoneId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("ProjectIssues");
+                });
+
             modelBuilder.Entity("Coding.Models.ProjectMember", b =>
                 {
                     b.Property<Guid>("ID")
@@ -1757,6 +3355,147 @@ namespace Coding.Migrations
                     b.ToTable("ProjectMembers");
                 });
 
+            modelBuilder.Entity("Coding.Models.ProjectMilestone", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("TargetDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("ProjectId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("ProjectMilestones");
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectPlan", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AppliedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DefaultLanguage")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Idea")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("PlanHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<JsonDocument>("PlanJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("CreatedProjectId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("ProjectPlans");
+                });
+
             modelBuilder.Entity("Coding.Models.ProjectTask", b =>
                 {
                     b.Property<Guid>("ID")
@@ -1784,6 +3523,9 @@ namespace Coding.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<Guid?>("IssueId")
+                        .HasColumnType("uuid");
 
                     b.Property<decimal>("Position")
                         .HasPrecision(28, 12)
@@ -1813,9 +3555,261 @@ namespace Coding.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("IssueId");
+
                     b.HasIndex("ProjectId", "Status", "Position");
 
                     b.ToTable("ProjectTasks");
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectView", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("ViewedOn")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("ViewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ProjectId", "UserId", "ViewedOn");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ProjectId", "ViewedAt");
+
+                    b.ToTable("ProjectViews");
+                });
+
+            modelBuilder.Entity("Coding.Models.PullRequest", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MergeCommitSha")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("MergedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("MergedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("RequirePassingTests")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("RequiredApprovals")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceBranch")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SourceHeadSha")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetBranch")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TargetHeadSha")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("TestSummary")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool?>("TestsPassed")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("MergedById");
+
+                    b.HasIndex("ProjectId", "Number")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId", "SourceBranch")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 0 AND \"IsDeleted\" = false");
+
+                    b.HasIndex("ProjectId", "Status", "UpdatedAt");
+
+                    b.ToTable("PullRequests");
+                });
+
+            modelBuilder.Entity("Coding.Models.PullRequestComment", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<string>("CommitSha")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FilePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsBlocking")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsResolved")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("LineNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PullRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResolvedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("ResolvedById");
+
+                    b.HasIndex("PullRequestId", "IsResolved", "IsBlocking");
+
+                    b.ToTable("PullRequestComments");
+                });
+
+            modelBuilder.Entity("Coding.Models.PullRequestReview", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Decision")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PullRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReviewedSourceSha")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("ReviewerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("ReviewerId");
+
+                    b.HasIndex("PullRequestId", "ReviewerId")
+                        .IsUnique();
+
+                    b.ToTable("PullRequestReviews");
                 });
 
             modelBuilder.Entity("Coding.Models.RefreshToken", b =>
@@ -1934,7 +3928,591 @@ namespace Coding.Migrations
                             Description = "Built-in platform user role.",
                             IsDeleted = false,
                             Name = "User"
+                        },
+                        new
+                        {
+                            ID = new Guid("66666666-6666-6666-6666-666666666666"),
+                            CreatAt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Built-in moderation role.",
+                            IsDeleted = false,
+                            Name = "Moderator"
                         });
+                });
+
+            modelBuilder.Entity("Coding.Models.RoomInterviewerNote", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("RoomId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("RoomId", "AuthorId", "CreatAt");
+
+                    b.ToTable("RoomInterviewerNotes");
+                });
+
+            modelBuilder.Entity("Coding.Models.RoomMessage", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("RoomId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("RoomId", "SentAt");
+
+                    b.ToTable("RoomMessages");
+                });
+
+            modelBuilder.Entity("Coding.Models.RoomParticipant", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("InvitedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("InvitedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("JoinedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LeftAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("RoomId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("InvitedById");
+
+                    b.HasIndex("RoomId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("RoomParticipants");
+                });
+
+            modelBuilder.Entity("Coding.Models.RoomReaction", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Emoji")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("RoomId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("RoomId", "UserId", "Emoji")
+                        .IsUnique();
+
+                    b.ToTable("RoomReactions");
+                });
+
+            modelBuilder.Entity("Coding.Models.RoomTask", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("RoomId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("CreatedById");
+
+                    b.HasIndex("RoomId", "CreatAt");
+
+                    b.ToTable("RoomTasks");
+                });
+
+            modelBuilder.Entity("Coding.Models.SavedMarketplaceItem", b =>
+                {
+                    b.Property<Guid>("MarketplaceItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("MarketplaceItemId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("SavedMarketplaceItems");
+                });
+
+            modelBuilder.Entity("Coding.Models.SavedProject", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ProjectId", "UserId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("SavedProjects");
+                });
+
+            modelBuilder.Entity("Coding.Models.SavedSocialPost", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("PostId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.HasIndex("UserId", "PostId")
+                        .IsUnique();
+
+                    b.ToTable("SavedSocialPosts");
+                });
+
+            modelBuilder.Entity("Coding.Models.ScreenshotCodeGeneration", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Analysis")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)");
+
+                    b.Property<string>("AppTsx")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("AppliedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ImageFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("ImageHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ImageMediaType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ModelName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ModelProvider")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("PreviewHtml")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Prompt")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StylesCss")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TargetSnapshotsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ProjectId", "GeneratedAt");
+
+                    b.ToTable("ScreenshotCodeGenerations");
+                });
+
+            modelBuilder.Entity("Coding.Models.SocialPost", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodeLanguage")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("AuthorId", "CreatedAt");
+
+                    b.HasIndex("CreatedAt", "ID");
+
+                    b.ToTable("SocialPosts");
+                });
+
+            modelBuilder.Entity("Coding.Models.SocialPostComment", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ParentCommentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("ParentCommentId");
+
+                    b.HasIndex("PostId", "CreatedAt");
+
+                    b.ToTable("SocialPostComments");
+                });
+
+            modelBuilder.Entity("Coding.Models.SocialPostReaction", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("PostId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("SocialPostReactions");
+                });
+
+            modelBuilder.Entity("Coding.Models.SocialPostShare", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("PostId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("SocialPostShares");
                 });
 
             modelBuilder.Entity("Coding.Models.TaskAssignee", b =>
@@ -2058,12 +4636,22 @@ namespace Coding.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("character varying(8)");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Active");
+
                     b.Property<DateTime?>("SuspendedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("SuspensionReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<int>("TokenVersion")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdateAt")
                         .HasColumnType("timestamp with time zone");
@@ -2088,6 +4676,186 @@ namespace Coding.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("Coding.Models.UserAchievement", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AchievementId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EvidenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("EvidenceType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UnlockedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("AchievementId");
+
+                    b.HasIndex("UserId", "AchievementId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "UnlockedAt");
+
+                    b.ToTable("UserAchievements");
+                });
+
+            modelBuilder.Entity("Coding.Models.UserBan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BannedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsPermanent")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("StartAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BannedByUserId");
+
+                    b.HasIndex("UserId", "Status", "ExpiresAt");
+
+                    b.ToTable("UserBans");
+                });
+
+            modelBuilder.Entity("Coding.Models.UserBlock", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BlockedId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BlockerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("BlockedId", "CreatedAt");
+
+                    b.HasIndex("BlockerId", "BlockedId")
+                        .IsUnique();
+
+                    b.ToTable("UserBlocks", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserBlocks_DifferentUsers", "\"BlockerId\" <> \"BlockedId\"");
+                        });
+                });
+
+            modelBuilder.Entity("Coding.Models.UserFollow", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FollowerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FollowingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("FollowerId", "FollowingId")
+                        .IsUnique();
+
+                    b.HasIndex("FollowingId", "CreatedAt");
+
+                    b.ToTable("UserFollows", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserFollows_DifferentUsers", "\"FollowerId\" <> \"FollowingId\"");
+                        });
                 });
 
             modelBuilder.Entity("Coding.Models.UserNotificationPreference", b =>
@@ -2334,7 +5102,7 @@ namespace Coding.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                        .HasColumnType("citext");
 
                     b.Property<int>("NodeType")
                         .HasColumnType("integer");
@@ -2356,8 +5124,15 @@ namespace Coding.Migrations
 
                     b.HasIndex("ProjectId");
 
+                    b.HasIndex("ProjectId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("UX_WorkspaceNodes_ActiveRootName")
+                        .HasFilter("\"IsDeleted\" = FALSE AND \"ParentId\" IS NULL");
+
                     b.HasIndex("ProjectId", "ParentId", "Name")
-                        .HasDatabaseName("IX_WorkspaceNodes_SiblingNameLookup");
+                        .IsUnique()
+                        .HasDatabaseName("UX_WorkspaceNodes_ActiveSiblingName")
+                        .HasFilter("\"IsDeleted\" = FALSE AND \"ParentId\" IS NOT NULL");
 
                     b.ToTable("WorkspaceNodes");
                 });
@@ -2561,6 +5336,25 @@ namespace Coding.Migrations
                     b.Navigation("AgentStep");
                 });
 
+            modelBuilder.Entity("Coding.Models.AiUiGeneration", b =>
+                {
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany("AiUiGenerations")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Coding.Models.AiUsageRecord", b =>
                 {
                     b.HasOne("Coding.Models.AiConversation", "Conversation")
@@ -2586,6 +5380,44 @@ namespace Coding.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.AutonomousTestIteration", b =>
+                {
+                    b.HasOne("Coding.Models.AutonomousTestRun", "Run")
+                        .WithMany("Iterations")
+                        .HasForeignKey("RunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Run");
+                });
+
+            modelBuilder.Entity("Coding.Models.AutonomousTestRun", b =>
+                {
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany("AutonomousTestRuns")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.WorkspaceNode", "WorkspaceNode")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceNodeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
+
+                    b.Navigation("WorkspaceNode");
                 });
 
             modelBuilder.Entity("Coding.Models.ChatAttachment", b =>
@@ -2702,6 +5534,24 @@ namespace Coding.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Coding.Models.ContentReport", b =>
+                {
+                    b.HasOne("Coding.Models.User", "AssignedModerator")
+                        .WithMany()
+                        .HasForeignKey("AssignedModeratorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Coding.Models.User", "Reporter")
+                        .WithMany()
+                        .HasForeignKey("ReporterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AssignedModerator");
+
+                    b.Navigation("Reporter");
+                });
+
             modelBuilder.Entity("Coding.Models.Conversation", b =>
                 {
                     b.HasOne("Coding.Models.Project", "Project")
@@ -2727,6 +5577,88 @@ namespace Coding.Migrations
                         .IsRequired();
 
                     b.Navigation("Conversation");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.DebuggingEvidence", b =>
+                {
+                    b.HasOne("Coding.Models.DebuggingIncident", "Incident")
+                        .WithMany("Evidence")
+                        .HasForeignKey("IncidentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Incident");
+                });
+
+            modelBuilder.Entity("Coding.Models.DebuggingExecutionObservation", b =>
+                {
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.WorkspaceNode", "WorkspaceNode")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceNodeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
+
+                    b.Navigation("WorkspaceNode");
+                });
+
+            modelBuilder.Entity("Coding.Models.DebuggingIncident", b =>
+                {
+                    b.HasOne("Coding.Models.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.DebuggingExecutionObservation", "ExecutionObservation")
+                        .WithOne("Incident")
+                        .HasForeignKey("Coding.Models.DebuggingIncident", "ExecutionObservationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany("DebuggingIncidents")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.WorkspaceNode", "WorkspaceNode")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceNodeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("ExecutionObservation");
+
+                    b.Navigation("Project");
+
+                    b.Navigation("WorkspaceNode");
+                });
+
+            modelBuilder.Entity("Coding.Models.DeveloperProfile", b =>
+                {
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithOne("DeveloperProfile")
+                        .HasForeignKey("Coding.Models.DeveloperProfile", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("User");
                 });
@@ -2827,6 +5759,156 @@ namespace Coding.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("Coding.Models.KnowledgeGraphEdge", b =>
+                {
+                    b.HasOne("Coding.Models.KnowledgeGraphNode", "FromNode")
+                        .WithMany("Outgoing")
+                        .HasForeignKey("FromNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.KnowledgeGraphSnapshot", "Snapshot")
+                        .WithMany("Edges")
+                        .HasForeignKey("SnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.KnowledgeGraphNode", "ToNode")
+                        .WithMany("Incoming")
+                        .HasForeignKey("ToNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FromNode");
+
+                    b.Navigation("Snapshot");
+
+                    b.Navigation("ToNode");
+                });
+
+            modelBuilder.Entity("Coding.Models.KnowledgeGraphNode", b =>
+                {
+                    b.HasOne("Coding.Models.KnowledgeGraphSnapshot", "Snapshot")
+                        .WithMany("Nodes")
+                        .HasForeignKey("SnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.WorkspaceNode", "SourceFile")
+                        .WithMany()
+                        .HasForeignKey("SourceFileId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Snapshot");
+
+                    b.Navigation("SourceFile");
+                });
+
+            modelBuilder.Entity("Coding.Models.KnowledgeGraphSnapshot", b =>
+                {
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany("KnowledgeGraphSnapshots")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Coding.Models.LiveCodingRoom", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Owner");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Coding.Models.MarketplaceInstallation", b =>
+                {
+                    b.HasOne("Coding.Models.User", "InstalledBy")
+                        .WithMany()
+                        .HasForeignKey("InstalledById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.MarketplaceItem", "MarketplaceItem")
+                        .WithMany("Installations")
+                        .HasForeignKey("MarketplaceItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.MarketplaceItemVersion", "MarketplaceItemVersion")
+                        .WithMany()
+                        .HasForeignKey("MarketplaceItemVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InstalledBy");
+
+                    b.Navigation("MarketplaceItem");
+
+                    b.Navigation("MarketplaceItemVersion");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Coding.Models.MarketplaceItem", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+                });
+
+            modelBuilder.Entity("Coding.Models.MarketplaceItemVersion", b =>
+                {
+                    b.HasOne("Coding.Models.MarketplaceItem", "MarketplaceItem")
+                        .WithMany("Versions")
+                        .HasForeignKey("MarketplaceItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MarketplaceItem");
+                });
+
+            modelBuilder.Entity("Coding.Models.MarketplaceLike", b =>
+                {
+                    b.HasOne("Coding.Models.MarketplaceItem", "MarketplaceItem")
+                        .WithMany()
+                        .HasForeignKey("MarketplaceItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MarketplaceItem");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Coding.Models.Message", b =>
                 {
                     b.HasOne("Coding.Models.User", "Sender")
@@ -2865,6 +5947,25 @@ namespace Coding.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Coding.Models.ModerationActionRecord", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Moderator")
+                        .WithMany()
+                        .HasForeignKey("ModeratorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.ContentReport", "Report")
+                        .WithMany("Actions")
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Moderator");
+
+                    b.Navigation("Report");
+                });
+
             modelBuilder.Entity("Coding.Models.Notification", b =>
                 {
                     b.HasOne("Coding.Models.User", "User")
@@ -2893,6 +5994,36 @@ namespace Coding.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("Coding.Models.ProjectDeployment", b =>
+                {
+                    b.HasOne("Coding.Models.User", "DeployedBy")
+                        .WithMany()
+                        .HasForeignKey("DeployedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany("Deployments")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DeployedBy");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectDeploymentFile", b =>
+                {
+                    b.HasOne("Coding.Models.ProjectDeployment", "Deployment")
+                        .WithMany("Files")
+                        .HasForeignKey("DeploymentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Deployment");
+                });
+
             modelBuilder.Entity("Coding.Models.ProjectInvitation", b =>
                 {
                     b.HasOne("Coding.Models.User", "InvitedBy")
@@ -2908,6 +6039,25 @@ namespace Coding.Migrations
                         .IsRequired();
 
                     b.Navigation("InvitedBy");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectIssue", b =>
+                {
+                    b.HasOne("Coding.Models.ProjectMilestone", "Milestone")
+                        .WithMany("Issues")
+                        .HasForeignKey("MilestoneId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany("Issues")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Milestone");
 
                     b.Navigation("Project");
                 });
@@ -2931,6 +6081,35 @@ namespace Coding.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Coding.Models.ProjectMilestone", b =>
+                {
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany("Milestones")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectPlan", b =>
+                {
+                    b.HasOne("Coding.Models.Project", "CreatedProject")
+                        .WithMany()
+                        .HasForeignKey("CreatedProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedProject");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Coding.Models.ProjectTask", b =>
                 {
                     b.HasOne("Coding.Models.User", "CreatedByUser")
@@ -2938,6 +6117,11 @@ namespace Coding.Migrations
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Coding.Models.ProjectIssue", "Issue")
+                        .WithMany("Tasks")
+                        .HasForeignKey("IssueId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Coding.Models.Project", "Project")
                         .WithMany("Tasks")
@@ -2947,7 +6131,99 @@ namespace Coding.Migrations
 
                     b.Navigation("CreatedByUser");
 
+                    b.Navigation("Issue");
+
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectView", b =>
+                {
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.PullRequest", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Author")
+                        .WithMany("AuthoredPullRequests")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "MergedBy")
+                        .WithMany()
+                        .HasForeignKey("MergedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany("PullRequests")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("MergedBy");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Coding.Models.PullRequestComment", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Author")
+                        .WithMany("PullRequestComments")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.PullRequest", "PullRequest")
+                        .WithMany("Comments")
+                        .HasForeignKey("PullRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "ResolvedBy")
+                        .WithMany()
+                        .HasForeignKey("ResolvedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Author");
+
+                    b.Navigation("PullRequest");
+
+                    b.Navigation("ResolvedBy");
+                });
+
+            modelBuilder.Entity("Coding.Models.PullRequestReview", b =>
+                {
+                    b.HasOne("Coding.Models.PullRequest", "PullRequest")
+                        .WithMany("Reviews")
+                        .HasForeignKey("PullRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "Reviewer")
+                        .WithMany("PullRequestReviews")
+                        .HasForeignKey("ReviewerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PullRequest");
+
+                    b.Navigation("Reviewer");
                 });
 
             modelBuilder.Entity("Coding.Models.RefreshToken", b =>
@@ -2957,6 +6233,267 @@ namespace Coding.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.RoomInterviewerNote", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.LiveCodingRoom", "Room")
+                        .WithMany("InterviewerNotes")
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Room");
+                });
+
+            modelBuilder.Entity("Coding.Models.RoomMessage", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.LiveCodingRoom", "Room")
+                        .WithMany("Messages")
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Room");
+                });
+
+            modelBuilder.Entity("Coding.Models.RoomParticipant", b =>
+                {
+                    b.HasOne("Coding.Models.User", "InvitedBy")
+                        .WithMany()
+                        .HasForeignKey("InvitedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.LiveCodingRoom", "Room")
+                        .WithMany("Participants")
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InvitedBy");
+
+                    b.Navigation("Room");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.RoomReaction", b =>
+                {
+                    b.HasOne("Coding.Models.LiveCodingRoom", "Room")
+                        .WithMany("Reactions")
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Room");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.RoomTask", b =>
+                {
+                    b.HasOne("Coding.Models.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.LiveCodingRoom", "Room")
+                        .WithMany("Tasks")
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("Room");
+                });
+
+            modelBuilder.Entity("Coding.Models.SavedMarketplaceItem", b =>
+                {
+                    b.HasOne("Coding.Models.MarketplaceItem", "MarketplaceItem")
+                        .WithMany()
+                        .HasForeignKey("MarketplaceItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MarketplaceItem");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.SavedProject", b =>
+                {
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.SavedSocialPost", b =>
+                {
+                    b.HasOne("Coding.Models.SocialPost", "Post")
+                        .WithMany("Saves")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Post");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.ScreenshotCodeGeneration", b =>
+                {
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany("ScreenshotCodeGenerations")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.SocialPost", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Coding.Models.SocialPostComment", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.SocialPostComment", "ParentComment")
+                        .WithMany("Replies")
+                        .HasForeignKey("ParentCommentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Coding.Models.SocialPost", "Post")
+                        .WithMany("Comments")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("ParentComment");
+
+                    b.Navigation("Post");
+                });
+
+            modelBuilder.Entity("Coding.Models.SocialPostReaction", b =>
+                {
+                    b.HasOne("Coding.Models.SocialPost", "Post")
+                        .WithMany("Reactions")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Post");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.SocialPostShare", b =>
+                {
+                    b.HasOne("Coding.Models.SocialPost", "Post")
+                        .WithMany("Shares")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Post");
 
                     b.Navigation("User");
                 });
@@ -2997,6 +6534,82 @@ namespace Coding.Migrations
                     b.Navigation("Task");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.UserAchievement", b =>
+                {
+                    b.HasOne("Coding.Models.Achievement", "Achievement")
+                        .WithMany("Awards")
+                        .HasForeignKey("AchievementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Achievement");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.UserBan", b =>
+                {
+                    b.HasOne("Coding.Models.User", "BannedByUser")
+                        .WithMany()
+                        .HasForeignKey("BannedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "User")
+                        .WithMany("Bans")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BannedByUser");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Coding.Models.UserBlock", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Blocked")
+                        .WithMany("BlockedByUsers")
+                        .HasForeignKey("BlockedId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "Blocker")
+                        .WithMany("BlockedUsers")
+                        .HasForeignKey("BlockerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Blocked");
+
+                    b.Navigation("Blocker");
+                });
+
+            modelBuilder.Entity("Coding.Models.UserFollow", b =>
+                {
+                    b.HasOne("Coding.Models.User", "Follower")
+                        .WithMany("Following")
+                        .HasForeignKey("FollowerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.User", "Following")
+                        .WithMany("Followers")
+                        .HasForeignKey("FollowingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Follower");
+
+                    b.Navigation("Following");
                 });
 
             modelBuilder.Entity("Coding.Models.UserNotificationPreference", b =>
@@ -3112,6 +6725,11 @@ namespace Coding.Migrations
                     b.Navigation("Responses");
                 });
 
+            modelBuilder.Entity("Coding.Models.Achievement", b =>
+                {
+                    b.Navigation("Awards");
+                });
+
             modelBuilder.Entity("Coding.Models.AiAgentRun", b =>
                 {
                     b.Navigation("Approvals");
@@ -3130,6 +6748,11 @@ namespace Coding.Migrations
                     b.Navigation("Messages");
                 });
 
+            modelBuilder.Entity("Coding.Models.AutonomousTestRun", b =>
+                {
+                    b.Navigation("Iterations");
+                });
+
             modelBuilder.Entity("Coding.Models.ChatMessage", b =>
                 {
                     b.Navigation("Attachments");
@@ -3137,11 +6760,26 @@ namespace Coding.Migrations
                     b.Navigation("ReadReceipts");
                 });
 
+            modelBuilder.Entity("Coding.Models.ContentReport", b =>
+                {
+                    b.Navigation("Actions");
+                });
+
             modelBuilder.Entity("Coding.Models.Conversation", b =>
                 {
                     b.Navigation("ChatMessages");
 
                     b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("Coding.Models.DebuggingExecutionObservation", b =>
+                {
+                    b.Navigation("Incident");
+                });
+
+            modelBuilder.Entity("Coding.Models.DebuggingIncident", b =>
+                {
+                    b.Navigation("Evidence");
                 });
 
             modelBuilder.Entity("Coding.Models.FileItem", b =>
@@ -3156,19 +6794,86 @@ namespace Coding.Migrations
                     b.Navigation("Files");
                 });
 
+            modelBuilder.Entity("Coding.Models.KnowledgeGraphNode", b =>
+                {
+                    b.Navigation("Incoming");
+
+                    b.Navigation("Outgoing");
+                });
+
+            modelBuilder.Entity("Coding.Models.KnowledgeGraphSnapshot", b =>
+                {
+                    b.Navigation("Edges");
+
+                    b.Navigation("Nodes");
+                });
+
+            modelBuilder.Entity("Coding.Models.LiveCodingRoom", b =>
+                {
+                    b.Navigation("InterviewerNotes");
+
+                    b.Navigation("Messages");
+
+                    b.Navigation("Participants");
+
+                    b.Navigation("Reactions");
+
+                    b.Navigation("Tasks");
+                });
+
+            modelBuilder.Entity("Coding.Models.MarketplaceItem", b =>
+                {
+                    b.Navigation("Installations");
+
+                    b.Navigation("Versions");
+                });
+
             modelBuilder.Entity("Coding.Models.Project", b =>
                 {
+                    b.Navigation("AiUiGenerations");
+
+                    b.Navigation("AutonomousTestRuns");
+
                     b.Navigation("Commits");
+
+                    b.Navigation("DebuggingIncidents");
+
+                    b.Navigation("Deployments");
 
                     b.Navigation("Folders");
 
                     b.Navigation("Invitations");
 
+                    b.Navigation("Issues");
+
+                    b.Navigation("KnowledgeGraphSnapshots");
+
                     b.Navigation("Members");
+
+                    b.Navigation("Milestones");
+
+                    b.Navigation("PullRequests");
+
+                    b.Navigation("ScreenshotCodeGenerations");
 
                     b.Navigation("Tasks");
 
                     b.Navigation("WorkspaceNodes");
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectDeployment", b =>
+                {
+                    b.Navigation("Files");
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectIssue", b =>
+                {
+                    b.Navigation("Tasks");
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectMilestone", b =>
+                {
+                    b.Navigation("Issues");
                 });
 
             modelBuilder.Entity("Coding.Models.ProjectTask", b =>
@@ -3178,16 +6883,53 @@ namespace Coding.Migrations
                     b.Navigation("Comments");
                 });
 
+            modelBuilder.Entity("Coding.Models.PullRequest", b =>
+                {
+                    b.Navigation("Comments");
+
+                    b.Navigation("Reviews");
+                });
+
             modelBuilder.Entity("Coding.Models.Role", b =>
                 {
                     b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("Coding.Models.SocialPost", b =>
+                {
+                    b.Navigation("Comments");
+
+                    b.Navigation("Reactions");
+
+                    b.Navigation("Saves");
+
+                    b.Navigation("Shares");
+                });
+
+            modelBuilder.Entity("Coding.Models.SocialPostComment", b =>
+                {
+                    b.Navigation("Replies");
                 });
 
             modelBuilder.Entity("Coding.Models.User", b =>
                 {
                     b.Navigation("AccountTokens");
 
+                    b.Navigation("AuthoredPullRequests");
+
+                    b.Navigation("Bans");
+
+                    b.Navigation("BlockedByUsers");
+
+                    b.Navigation("BlockedUsers");
+
                     b.Navigation("CodeHistories");
+
+                    b.Navigation("DeveloperProfile");
+
+                    b.Navigation("Followers");
+
+                    b.Navigation("Following");
 
                     b.Navigation("Messages");
 
@@ -3196,6 +6938,10 @@ namespace Coding.Migrations
                     b.Navigation("OwnedProjects");
 
                     b.Navigation("ProjectMembers");
+
+                    b.Navigation("PullRequestComments");
+
+                    b.Navigation("PullRequestReviews");
 
                     b.Navigation("RefreshTokens");
 

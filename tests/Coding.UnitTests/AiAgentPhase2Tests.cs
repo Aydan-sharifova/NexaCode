@@ -56,6 +56,7 @@ public sealed class AiAgentPhase2Tests
         new object[] { "-----BEGIN RSA PRIVATE KEY-----\nABC\n-----END RSA PRIVATE KEY-----", "PEM" },
         new object[] { "ghp_abc1234567890abcdefghij", "GitHub" },
         new object[] { "sk-abcdefghijklmnopqrstuvwxyz0123456789", "OpenAI" },
+        new object[] { "API_KEY=super-secret-value-123", "generic API key" },
     };
 
     [Theory]
@@ -79,6 +80,9 @@ public sealed class AiAgentPhase2Tests
     [InlineData(".env")]
     [InlineData("./secrets/.env")]
     [InlineData("appsettings.Production.json")]
+    [InlineData("appsettings.Development.json")]
+    [InlineData(".env.staging")]
+    [InlineData(".npmrc")]
     [InlineData("private.key")]
     [InlineData("server.pem")]
     [InlineData("certs/server.pfx")]
@@ -94,7 +98,6 @@ public sealed class AiAgentPhase2Tests
     [InlineData("src/index.ts")]
     [InlineData("README.md")]
     [InlineData("package.json")]
-    [InlineData("appsettings.Development.json")]
     public void Secret_file_detection_passes_normal_sources(string path)
     {
         new AiSecretRedactionService().IsSecretFile(path).Should().BeFalse();
@@ -184,7 +187,7 @@ public sealed class AiAgentPhase2Tests
         var descriptor = new AiToolDescriptor(
             "x", "x", risk,
             new HashSet<AiAgentMode> { AiAgentMode.Agent },
-            new HashSet<ProjectRole> { ProjectRole.Member },
+            new HashSet<ProjectRole> { ProjectRole.Developer },
             typeof(object));
         policy.RequiresApproval(descriptor).Should().Be(required);
     }
@@ -196,7 +199,7 @@ public sealed class AiAgentPhase2Tests
         var descriptor = new AiToolDescriptor(
             "create_file", "x", AiToolRiskLevel.Low,
             new HashSet<AiAgentMode> { AiAgentMode.Agent },
-            new HashSet<ProjectRole> { ProjectRole.Member },
+            new HashSet<ProjectRole> { ProjectRole.Developer },
             typeof(object));
 
         var noOptIn = new AiAgentRun { ProjectId = Guid.NewGuid(), Mode = AiAgentMode.Agent, PromptVersion = "v1" };
@@ -274,11 +277,11 @@ public sealed class AiAgentPhase2Tests
         var source = new TestDescriptorSource(
             new AiToolDescriptor("dup", "first", AiToolRiskLevel.ReadOnly,
                 new HashSet<AiAgentMode> { AiAgentMode.Agent },
-                new HashSet<ProjectRole> { ProjectRole.Member },
+                new HashSet<ProjectRole> { ProjectRole.Developer },
                 typeof(object)),
             new AiToolDescriptor("dup", "second", AiToolRiskLevel.ReadOnly,
                 new HashSet<AiAgentMode> { AiAgentMode.Agent },
-                new HashSet<ProjectRole> { ProjectRole.Member },
+                new HashSet<ProjectRole> { ProjectRole.Developer },
                 typeof(object)));
 
         Action act = () => new AiToolRegistry(source);
@@ -301,11 +304,11 @@ public sealed class AiAgentPhase2Tests
         var source = new TestDescriptorSource(
             new AiToolDescriptor("a", "a", AiToolRiskLevel.ReadOnly,
                 new HashSet<AiAgentMode> { AiAgentMode.Agent },
-                new HashSet<ProjectRole> { ProjectRole.Member },
+                new HashSet<ProjectRole> { ProjectRole.Developer },
                 typeof(object)),
             new AiToolDescriptor("b", "b", AiToolRiskLevel.ReadOnly,
                 new HashSet<AiAgentMode> { AiAgentMode.Agent },
-                new HashSet<ProjectRole> { ProjectRole.Member },
+                new HashSet<ProjectRole> { ProjectRole.Developer },
                 typeof(object)));
 
         var registry = new AiToolRegistry(source);
@@ -328,7 +331,7 @@ public sealed class AiAgentPhase2Tests
         var source = new TestDescriptorSource(fakeTool, new AiToolDescriptor(
             "fake_tool", "fake", AiToolRiskLevel.ReadOnly,
             new HashSet<AiAgentMode> { AiAgentMode.Agent },
-            new HashSet<ProjectRole> { ProjectRole.Member },
+            new HashSet<ProjectRole> { ProjectRole.Developer },
             typeof(object)));
         var registry = new AiToolRegistry(source);
 
@@ -342,7 +345,7 @@ public sealed class AiAgentPhase2Tests
         var source = new TestDescriptorSource(new AiToolDescriptor(
             "", "x", AiToolRiskLevel.ReadOnly,
             new HashSet<AiAgentMode> { AiAgentMode.Agent },
-            new HashSet<ProjectRole> { ProjectRole.Member },
+            new HashSet<ProjectRole> { ProjectRole.Developer },
             typeof(object)));
 
         Action act = () => new AiToolRegistry(source);
@@ -379,7 +382,7 @@ public sealed class AiAgentPhase2Tests
         public AiToolDescriptor Descriptor => new(
             "fake_tool", "fake", AiToolRiskLevel.ReadOnly,
             new HashSet<AiAgentMode> { AiAgentMode.Agent },
-            new HashSet<ProjectRole> { ProjectRole.Member },
+            new HashSet<ProjectRole> { ProjectRole.Developer },
             typeof(object));
 
         public Task<IAiToolResult> ExecuteAsync(JsonElement arguments, AiAgentRun run, CancellationToken cancellationToken)

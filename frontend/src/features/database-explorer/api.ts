@@ -4,4 +4,6 @@ export interface DatabaseForeignKey { name:string; sourceTable:string; sourceCol
 export interface DatabaseIndex { name:string; isUnique:boolean; columns:string[] }
 export interface DatabaseTable { schema:string; name:string; columns:DatabaseColumn[]; foreignKeys:DatabaseForeignKey[]; indexes:DatabaseIndex[] }
 export interface DatabaseSchema { name:string; tables:DatabaseTable[] }
-export const databaseMetadataApi={schema:(projectId:string)=>apiClient.get<DatabaseSchema[]>(`/projects/${projectId}/database/schema`)};
+export type DatabaseProvider="PostgreSQL"|"MySQL"|"SQLServer"|"SQLite";
+export interface ProjectDatabase { isConfigured:boolean; provider?:DatabaseProvider; schemas:DatabaseSchema[] }
+export const databaseMetadataApi={schema:(projectId:string)=>apiClient.get<ProjectDatabase>(`/projects/${projectId}/database/schema`),configure:(projectId:string,input:{provider:DatabaseProvider;schemaName:string})=>apiClient.post<ProjectDatabase>(`/projects/${projectId}/database/configure`,input)};

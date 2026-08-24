@@ -1,7 +1,7 @@
 import type { AuthResponse } from "../types/auth";
 import { tokenStore } from "./tokenStore";
+import { API_URL } from "./deployment";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 let refreshRequest: Promise<AuthResponse> | null = null;
 
 export class ApiError extends Error {

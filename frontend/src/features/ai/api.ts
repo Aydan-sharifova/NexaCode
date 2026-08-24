@@ -1,5 +1,6 @@
 import { apiClient, ApiError } from "../../services/apiClient";
 import { tokenStore } from "../../services/tokenStore";
+import { API_URL } from "../../services/deployment";
 import type {
   AiAssistantRequest,
   AiConversation,
@@ -7,8 +8,6 @@ import type {
   AiStreamChunk,
   GuestAiRequest,
 } from "./types";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
 async function streamRequest(
   request: AiAssistantRequest,

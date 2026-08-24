@@ -1,10 +1,11 @@
 using Coding.Application.Features.AiAgent;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Coding.Controllers;
 
-[ApiController, Authorize, Route("api/ai/approvals")]
+[ApiController, Authorize, EnableRateLimiting("ai"), Route("api/ai/approvals")]
 public sealed class AiApprovalsController(IAiApprovalService approvals) : ControllerBase
 {
     [HttpGet] public Task<IReadOnlyList<AiApprovalDetails>> List([FromQuery] Guid? projectId, CancellationToken ct) => approvals.ListAsync(projectId, ct);

@@ -2,6 +2,7 @@ using Coding.Application.Features.UserSettings;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Coding.Controllers;
 
@@ -15,6 +16,7 @@ public sealed class UserSettingsController(ISender sender) : ControllerBase
     [HttpPut("password")] public async Task<IActionResult> Password(ChangePasswordCommand command, CancellationToken ct) { await sender.Send(command, ct); return NoContent(); }
     [HttpPost("avatar")]
     [RequestSizeLimit(5_242_880)]
+    [EnableRateLimiting("uploads")]
     public async Task<ActionResult<object>> Avatar(IFormFile file, CancellationToken ct)
     {
         await using var stream = file.OpenReadStream(); using var memory = new MemoryStream(); await stream.CopyToAsync(memory, ct);

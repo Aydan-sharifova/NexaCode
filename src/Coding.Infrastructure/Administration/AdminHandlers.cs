@@ -3,6 +3,7 @@ using Coding.Application.Features.Activities;
 using Coding.Application.Features.Administration;
 using Coding.Data;
 using Coding.Infrastructure.Authentication;
+using Coding.Application.Features.Notifications;
 using Coding.Models;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,14 @@ internal static class AdminAccess
 {
     public static Task<bool> IsSuperAdmin(AppDbContext db, Guid userId, CancellationToken ct) =>
         db.UserRoles.AnyAsync(x => x.UserId == userId && x.Role.Name == SystemRoles.SuperAdmin, ct);
+
+    public static int Rank(IEnumerable<string> roles) => roles.Select(role => role switch
+    {
+        SystemRoles.SuperAdmin => 4,
+        SystemRoles.Admin => 3,
+        SystemRoles.Moderator => 2,
+        _ => 1
+    }).DefaultIfEmpty(1).Max();
 }
 public sealed class GetAdminUsersHandler(AppDbContext db) : IRequestHandler<GetAdminUsersQuery, PageResult<AdminUserListItem>>
 {
@@ -25,7 +34,7 @@ public sealed class GetAdminUsersHandler(AppDbContext db) : IRequestHandler<GetA
         if (!string.IsNullOrWhiteSpace(r.Role)) query = query.Where(x => x.UserRoles.Any(ur => ur.Role.Name == r.Role));
         var total = await query.CountAsync(ct);
         var items = await query.OrderByDescending(x => x.CreatedAt).Skip((page - 1) * size).Take(size)
-            .Select(x => new AdminUserListItem(x.ID, x.FirstName + " " + x.LastName, x.UserName, x.Email, x.IsSuspended, x.UserRoles.Select(ur => ur.Role.Name).ToList(), x.CreatedAt, x.LastSeen)).ToListAsync(ct);
+            .Select(x => new AdminUserListItem(x.ID, x.FirstName + " " + x.LastName, x.UserName, x.Email, x.IsSuspended, x.Bans.Where(b => b.Status == Coding.Enums.UserBanStatus.Active).Select(b => b.ExpiresAt).FirstOrDefault(), x.UserRoles.Select(ur => ur.Role.Name).ToList(), x.CreatedAt, x.LastSeen)).ToListAsync(ct);
         return new(items, total, page, size);
     }
 }
@@ -33,20 +42,29 @@ public sealed class GetAdminUserDetailsHandler(AppDbContext db) : IRequestHandle
 {
     public async Task<AdminUserDetails> Handle(GetAdminUserDetailsQuery r, CancellationToken ct) =>
         await db.Users.AsNoTracking().Where(x => x.ID == r.UserId && !x.IsDeleted)
-            .Select(x => new AdminUserDetails(x.ID, x.FirstName, x.LastName, x.UserName, x.Email, x.Bio, x.AvatarUrl, x.IsSuspended, x.SuspensionReason, x.UserRoles.Select(ur => ur.Role.Name).ToList(), x.ProjectMembers.Count, x.CreatedAt, x.LastSeen))
+            .Select(x => new AdminUserDetails(x.ID, x.FirstName, x.LastName, x.UserName, x.Email, x.Bio, x.AvatarUrl, x.IsSuspended, x.SuspensionReason, x.Bans.Where(b => b.Status == Coding.Enums.UserBanStatus.Active).Select(b => b.ExpiresAt).FirstOrDefault(), x.UserRoles.Select(ur => ur.Role.Name).ToList(), x.ProjectMembers.Count, x.CreatedAt, x.LastSeen))
             .SingleOrDefaultAsync(ct) ?? throw new KeyNotFoundException("User was not found.");
 }
-public sealed class SetUserSuspensionHandler(AppDbContext db, ICurrentUser current, IActivityLogger audit) : IRequestHandler<SetUserSuspensionCommand>
+public sealed class SetUserSuspensionHandler(AppDbContext db, ICurrentUser current, IActivityLogger audit,INotificationService notifications) : IRequestHandler<SetUserSuspensionCommand>
 {
     public async Task Handle(SetUserSuspensionCommand r, CancellationToken ct)
     {
         if (r.UserId == current.UserId) throw new InvalidOperationException("You cannot suspend your own account.");
+        var now = DateTime.UtcNow;
+        if (r.Suspended && string.IsNullOrWhiteSpace(r.Reason)) throw new InvalidOperationException("A suspension reason is required.");
+        if (r.Suspended && r.ExpiresAt.HasValue && r.ExpiresAt.Value <= now) throw new InvalidOperationException("Suspension expiry must be in the future.");
         var target = await db.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role).SingleOrDefaultAsync(x => x.ID == r.UserId, ct) ?? throw new KeyNotFoundException("User was not found.");
-        if (target.UserRoles.Any(x => x.Role.Name == SystemRoles.SuperAdmin) && !await AdminAccess.IsSuperAdmin(db, current.UserId, ct)) throw new UnauthorizedAccessException("Only a SuperAdmin can manage another SuperAdmin.");
-        target.IsSuspended = r.Suspended; target.SuspendedAt = r.Suspended ? DateTime.UtcNow : null; target.SuspensionReason = r.Suspended ? r.Reason?.Trim() : null; target.UpdatedAt = DateTime.UtcNow;
+        var actorRoles = await db.UserRoles.Where(x => x.UserId == current.UserId).Select(x => x.Role.Name).ToListAsync(ct);
+        var targetRoles = target.UserRoles.Select(x => x.Role.Name).ToArray();
+        if (AdminAccess.Rank(actorRoles) <= AdminAccess.Rank(targetRoles)) throw new UnauthorizedAccessException("You cannot manage an account at the same or a higher role level.");
+        target.IsSuspended = r.Suspended; target.Status = r.Suspended ? Coding.Enums.UserStatus.Banned : Coding.Enums.UserStatus.Active; target.SuspendedAt = r.Suspended ? now : null; target.SuspensionReason = r.Suspended ? r.Reason?.Trim() : null; target.UpdatedAt = now; target.TokenVersion++;
+        var activeBans = await db.UserBans.Where(x => x.UserId == target.ID && x.Status == Coding.Enums.UserBanStatus.Active).ToListAsync(ct);
+        foreach (var ban in activeBans) { ban.Status = Coding.Enums.UserBanStatus.Revoked; ban.EndedAt = now; }
+        if (r.Suspended) db.UserBans.Add(new UserBan { Id = Guid.NewGuid(), UserId = target.ID, BannedByUserId = current.UserId, Reason = r.Reason!.Trim(), StartAt = now, ExpiresAt = r.ExpiresAt, IsPermanent = !r.ExpiresAt.HasValue, Status = Coding.Enums.UserBanStatus.Active, CreatedAt = now });
         if (r.Suspended) await db.RefreshTokens.Where(x => x.UserId == target.ID && !x.IsRevoked).ExecuteUpdateAsync(x => x.SetProperty(t => t.IsRevoked, true), ct);
         await db.SaveChangesAsync(ct);
-        await audit.LogAsync(new(current.UserId, null, r.Suspended ? "AdminUserSuspended" : "AdminUserActivated", nameof(User), target.ID, r.Suspended ? "Administrator suspended a user." : "Administrator activated a user.", new Dictionary<string, object?> { ["reason"] = r.Reason }), ct);
+        await audit.LogAsync(new(current.UserId, null, r.Suspended ? "AdminUserSuspended" : "AdminUserActivated", nameof(User), target.ID, r.Suspended ? "Administrator suspended a user." : "Administrator activated a user.", new Dictionary<string, object?> { ["reason"] = r.Reason, ["expiresAt"] = r.ExpiresAt }), ct);
+        await notifications.CreateAsync(new(target.ID,Coding.Enums.NotificationType.Ban,r.Suspended?"Account suspended":"Account restored",r.Suspended?$"Your account was suspended. Reason: {r.Reason}":"Your account access was restored.",target.ID,nameof(User),$"account-status:{target.TokenVersion}"),ct);
     }
 }
 public sealed class SetSystemRoleHandler(AppDbContext db, ICurrentUser current, IActivityLogger audit) : IRequestHandler<SetSystemRoleCommand>
@@ -80,7 +98,7 @@ public sealed class UpdateAdminUserHandler(AppDbContext db, ICurrentUser current
         user.FirstName = r.FirstName.Trim(); user.LastName = r.LastName.Trim(); user.UserName = userName; user.Email = email; user.Bio = r.Bio?.Trim(); user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
         await audit.LogAsync(new(current.UserId, null, "AdminUserUpdated", nameof(User), user.ID, "SuperAdmin updated a user account.", new Dictionary<string, object?> { ["userName"] = user.UserName, ["email"] = user.Email }), ct);
-        return await db.Users.AsNoTracking().Where(x => x.ID == user.ID).Select(x => new AdminUserDetails(x.ID, x.FirstName, x.LastName, x.UserName, x.Email, x.Bio, x.AvatarUrl, x.IsSuspended, x.SuspensionReason, x.UserRoles.Select(ur => ur.Role.Name).ToList(), x.ProjectMembers.Count, x.CreatedAt, x.LastSeen)).SingleAsync(ct);
+        return await db.Users.AsNoTracking().Where(x => x.ID == user.ID).Select(x => new AdminUserDetails(x.ID, x.FirstName, x.LastName, x.UserName, x.Email, x.Bio, x.AvatarUrl, x.IsSuspended, x.SuspensionReason, x.Bans.Where(b => b.Status == Coding.Enums.UserBanStatus.Active).Select(b => b.ExpiresAt).FirstOrDefault(), x.UserRoles.Select(ur => ur.Role.Name).ToList(), x.ProjectMembers.Count, x.CreatedAt, x.LastSeen)).SingleAsync(ct);
     }
 }
 public sealed class DeleteAdminUserHandler(AppDbContext db, ICurrentUser current, IActivityLogger audit) : IRequestHandler<DeleteAdminUserCommand>
@@ -99,6 +117,8 @@ public sealed class DeleteAdminUserHandler(AppDbContext db, ICurrentUser current
         var deletedAt = DateTime.UtcNow;
         var deletedIdentity = user.ID.ToString("N");
         user.IsDeleted = true;
+        user.Status = Coding.Enums.UserStatus.Deleted;
+        user.TokenVersion++;
         user.DeletedAt = deletedAt;
         user.IsSuspended = true;
         user.SuspendedAt = deletedAt;
@@ -151,7 +171,7 @@ public sealed class GetPlatformStatisticsHandler(AppDbContext db) : IRequestHand
     public async Task<PlatformStatistics> Handle(GetPlatformStatisticsQuery r, CancellationToken ct)
     {
         var since = DateTime.UtcNow.AddDays(-30);
-        return new(await db.Users.CountAsync(x => !x.IsDeleted, ct), await db.Users.CountAsync(x => !x.IsDeleted && x.LastSeen >= since, ct), await db.Users.CountAsync(x => x.IsSuspended, ct), await db.Projects.CountAsync(ct), await db.Projects.CountAsync(x => x.CreatedAt >= since, ct), await db.ActivityLogs.CountAsync(x => x.CreatedAt >= since, ct));
+        return new(await db.Users.CountAsync(x => !x.IsDeleted, ct), await db.Users.CountAsync(x => !x.IsDeleted && x.LastSeen >= since, ct), await db.Users.CountAsync(x => !x.IsDeleted && x.IsSuspended, ct), await db.Projects.CountAsync(ct), await db.Projects.CountAsync(x => x.CreatedAt >= since, ct), await db.ActivityLogs.CountAsync(x => x.CreatedAt >= since, ct));
     }
 }
 

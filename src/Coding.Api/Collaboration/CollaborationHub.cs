@@ -241,6 +241,17 @@ public sealed class CollaborationHub(
     public Task LeaveConversation(Guid conversationId) =>
         Groups.RemoveFromGroupAsync(Context.ConnectionId, ConversationGroup(conversationId));
 
+    public async Task JoinLiveRoom(Guid roomId)
+    {
+        var allowed = await db.LiveCodingRooms.AsNoTracking().AnyAsync(room => room.ID == roomId &&
+            (room.OwnerId == UserId || room.Participants.Any(participant => participant.UserId == UserId && participant.Status != LiveRoomParticipantStatus.Removed) ||
+             (room.Visibility == LiveRoomVisibility.ProjectMembers && room.ProjectId != null && db.ProjectMembers.Any(member => member.ProjectId == room.ProjectId && member.UserId == UserId))), Context.ConnectionAborted);
+        if (!allowed) throw new HubException("You are not authorized to join this live room.");
+        await Groups.AddToGroupAsync(Context.ConnectionId, LiveRoomGroup(roomId));
+    }
+
+    public Task LeaveLiveRoom(Guid roomId) => Groups.RemoveFromGroupAsync(Context.ConnectionId, LiveRoomGroup(roomId));
+
     public async Task StartChatTyping(Guid conversationId)
     {
         if (!await db.ConversationParticipants.AsNoTracking().AnyAsync(item => item.ConversationId == conversationId && item.UserId == UserId))
@@ -332,4 +343,5 @@ public sealed class CollaborationHub(
     public static string FileGroup(Guid fileId) => $"file:{fileId:N}";
     public static string ConversationGroup(Guid conversationId) => $"conversation:{conversationId:N}";
     public static string UserGroup(Guid userId) => $"user:{userId:N}";
+    public static string LiveRoomGroup(Guid roomId) => $"live-room:{roomId:N}";
 }

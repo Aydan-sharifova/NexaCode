@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Coding.Application.Abstractions;
 using Coding.Application.Features.AiAssistant;
+using Coding.Application.Features.AiAgent;
 using Coding.Data;
 using Coding.Enums;
 using Coding.Exceptions;
@@ -82,7 +83,7 @@ public sealed class DevelopmentAiProvider : IAiProvider
     private static string Explain(string code) =>
         string.IsNullOrWhiteSpace(code)
             ? "Select code or open a non-empty file and try again for a code-specific explanation."
-            : $"The supplied code contains {code.Split('\n').Length} line(s). It executes from top to bottom unless functions or control-flow statements redirect execution. Inputs should be validated at the boundary, returned values form the observable result, and any I/O or state mutation is a side effect. For a production-quality explanation, configure OpenAI__ApiKey.";
+            : $"The supplied code contains {code.Split('\n').Length} line(s). It executes from top to bottom unless functions or control-flow statements redirect execution. Inputs should be validated at the boundary, returned values form the observable result, and any I/O or state mutation is a side effect. Configure Ollama for model-generated explanations.";
 
     private static string FindBug(string code)
     {
@@ -142,7 +143,7 @@ public sealed class DevelopmentAiProvider : IAiProvider
                    Describe the exact behavior in the prompt to generate a more specific implementation.
                    """;
 
-        return $"Generate production-ready {request.ProgrammingLanguage} code for the requested behavior, including input validation, explicit error handling, and testable boundaries. Configure OpenAI__ApiKey for request-specific model-generated implementations.";
+        return $"Generate production-ready {request.ProgrammingLanguage} code for the requested behavior, including input validation, explicit error handling, and testable boundaries. Configure Ollama for request-specific model-generated implementations.";
     }
 
     private static string AnswerChat(AiRequest request)
@@ -164,7 +165,7 @@ public sealed class DevelopmentAiProvider : IAiProvider
                    This is deterministic and works for positive, negative, and decimal numbers.
                    """;
 
-        return $"Development assistant response for: “{prompt}”\n\nAll assistant actions and streaming are operational. Configure OpenAI__ApiKey to replace deterministic local responses with full model-generated answers.";
+        return $"Development assistant response for: “{prompt}”\n\nAll assistant actions and streaming are operational. Configure Ollama to replace deterministic local responses with full model-generated answers.";
     }
 
     private static int EstimateTokens(string value) => Math.Max(1, value.Length / 4);
@@ -218,7 +219,7 @@ public sealed class AiPromptTemplateService : IAiPromptTemplateService
     }
 }
 
-public sealed class AiContextBuilder(AppDbContext db, ICurrentUser currentUser) : IAiContextBuilder
+public sealed class AiContextBuilder(AppDbContext db, ICurrentUser currentUser, IAiSecretRedactionService redaction) : IAiContextBuilder
 {
     private const int MaximumCharacters = 24_000;
 
@@ -227,6 +228,15 @@ public sealed class AiContextBuilder(AppDbContext db, ICurrentUser currentUser) 
         await ProjectAccess.RequireMemberAsync(db, request.ProjectId, currentUser.UserId, cancellationToken);
         var builder = new StringBuilder();
         var included = new List<Guid>();
+        var fileIds = new List<Guid>();
+        if (request.CurrentFileId.HasValue) fileIds.Add(request.CurrentFileId.Value);
+        if (request.ReferencedFileIds is not null)
+            fileIds.AddRange(request.ReferencedFileIds.Where(id => !fileIds.Contains(id)).Take(5));
+        var requestedNames = await db.WorkspaceNodes.AsNoTracking()
+            .Where(node => fileIds.Contains(node.ID) && node.ProjectId == request.ProjectId && node.NodeType == WorkspaceNodeType.File)
+            .Select(node => node.Name).ToListAsync(cancellationToken);
+        if (requestedNames.Any(redaction.IsSecretFile))
+            throw new ForbiddenException("Protected secret files cannot be included in AI context.");
 
         Append(builder, "SELECTED CODE", request.SelectedCode, 10_000);
         Append(builder, "NEIGHBORING CODE", request.NeighboringCode, 4_000);
@@ -244,11 +254,6 @@ public sealed class AiContextBuilder(AppDbContext db, ICurrentUser currentUser) 
                     Math.Min(remaining, 10_000));
             }
         }
-
-        var fileIds = new List<Guid>();
-        if (request.CurrentFileId.HasValue) fileIds.Add(request.CurrentFileId.Value);
-        if (request.ReferencedFileIds is not null)
-            fileIds.AddRange(request.ReferencedFileIds.Where(id => !fileIds.Contains(id)).Take(5));
 
         foreach (var fileId in fileIds)
         {
@@ -268,10 +273,11 @@ public sealed class AiContextBuilder(AppDbContext db, ICurrentUser currentUser) 
         return new AiRepositoryContext(builder.ToString(), builder.Length, included);
     }
 
-    private static void Append(StringBuilder builder, string heading, string? value, int limit)
+    private void Append(StringBuilder builder, string heading, string? value, int limit)
     {
         if (string.IsNullOrWhiteSpace(value) || limit <= 0) return;
-        var safe = value.Length > limit ? value[..limit] : value;
+        var redacted = redaction.Redact(value);
+        var safe = redacted.Length > limit ? redacted[..limit] : redacted;
         builder.AppendLine($"--- BEGIN REPOSITORY REFERENCE: {heading} ---");
         builder.AppendLine(safe);
         builder.AppendLine("--- END REPOSITORY REFERENCE ---");
@@ -384,6 +390,7 @@ public sealed class AiConversationService(
     IAiContextBuilder contextBuilder,
     IAiPromptTemplateService prompts,
     IAiUsageTracker usageTracker,
+    IAiSecretRedactionService redaction,
     Coding.Application.Features.Demo.IDemoEnvironmentService demoEnvironment) : IAiConversationService
 {
     private const int MaximumAttachments = 4;
@@ -454,7 +461,7 @@ public sealed class AiConversationService(
             ID = Guid.NewGuid(),
             Conversation = conversation,
             Role = AiMessageRole.User,
-            Content = prompts.BuildUserInstructions(request),
+            Content = redaction.Redact(prompts.BuildUserInstructions(request)),
             Action = request.Action,
             FileId = request.CurrentFileId,
             CreatedAt = now,
@@ -464,13 +471,14 @@ public sealed class AiConversationService(
         conversation.UpdatedAt = now;
         await db.SaveChangesAsync(cancellationToken);
 
-        var history = await db.AiMessages.AsNoTracking()
+        var storedHistory = await db.AiMessages.AsNoTracking()
             .Where(message => message.ConversationId == conversation.ID && message.ID != userMessage.ID)
             .OrderByDescending(message => message.CreatedAt)
             .Take(12)
             .OrderBy(message => message.CreatedAt)
-            .Select(message => new AiProviderMessage(message.Role, message.Content))
+            .Select(message => new { message.Role, message.Content })
             .ToListAsync(cancellationToken);
+        var history = storedHistory.Select(message => new AiProviderMessage(message.Role, redaction.Redact(message.Content))).ToList();
         var repositoryContext = await contextBuilder.BuildAsync(request, cancellationToken);
         var providerRequest = new AiRequest(
             prompts.GetSystemInstructions(request.Action),
@@ -575,7 +583,7 @@ public sealed class AiConversationService(
         return source.Length <= 80 ? source : source[..77] + "...";
     }
 
-    private static IReadOnlyList<AiAttachmentRequest> ValidateAttachments(
+    private IReadOnlyList<AiAttachmentRequest> ValidateAttachments(
         IReadOnlyList<AiAttachmentRequest>? attachments)
     {
         if (attachments is null || attachments.Count == 0)
@@ -594,6 +602,8 @@ public sealed class AiConversationService(
             var content = attachment.Content ?? string.Empty;
             if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 255)
                 throw new ArgumentException("Every attachment must have a valid file name.");
+            if (redaction.IsSecretFile(fileName))
+                throw new ArgumentException($"{fileName} is a protected secret file and cannot be sent to AI.");
 
             if (attachment.IsImage)
             {
@@ -643,7 +653,7 @@ public sealed class AiConversationService(
             {
                 FileName = fileName,
                 MediaType = mediaType,
-                Content = content
+                Content = attachment.IsImage ? content : redaction.Redact(content)
             });
         }
 

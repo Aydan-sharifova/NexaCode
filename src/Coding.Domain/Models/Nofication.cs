@@ -23,6 +23,8 @@ namespace Coding.Models
 
         public string? RelatedEntityType { get; set; }
 
+        public string? DeduplicationKey { get; set; }
+
         public DateTime? ReadAt { get; set; }
     }
 }

@@ -12,6 +12,23 @@ namespace Coding.Enums
         UserMention,
         DirectMessage,
         RoleChange,
-        TaskDeadlineExceeded
+        TaskDeadlineExceeded,
+        Follow,
+        PostLike,
+        PostComment,
+        PostMention,
+        ProjectDeadlineSoon,
+        ProjectDeadlineExpired,
+        ProjectDeadlineExtended,
+        PullRequestCreated,
+        PullRequestReviewed,
+        PullRequestCommented,
+        PullRequestMerged,
+        PullRequestClosed,
+        Achievement,
+        Deployment,
+        Ban,
+        AITask,
+        AgentCompletion
     }
 }

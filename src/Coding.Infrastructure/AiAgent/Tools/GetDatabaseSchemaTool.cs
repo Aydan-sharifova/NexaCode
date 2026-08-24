@@ -19,7 +19,7 @@ public sealed class GetDatabaseSchemaTool(AppDbContext db) : IAiTool
         Description: "Returns authorized database schema metadata for the application database. Read-only.",
         RiskLevel: AiToolRiskLevel.ReadOnly,
         AllowedModes: new HashSet<AiAgentMode> { AiAgentMode.Ask, AiAgentMode.Plan, AiAgentMode.Agent, AiAgentMode.Review },
-        RequiredRoles: new HashSet<ProjectRole> { ProjectRole.Owner, ProjectRole.Admin },
+        RequiredRoles: new HashSet<ProjectRole> { ProjectRole.Owner, ProjectRole.Admin, ProjectRole.Maintainer, ProjectRole.Developer, ProjectRole.Viewer },
         InputType: typeof(GetDatabaseSchemaInput));
 
     public AiToolDescriptor Descriptor => StaticDescriptor;

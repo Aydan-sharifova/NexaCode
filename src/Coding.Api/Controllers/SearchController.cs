@@ -2,10 +2,11 @@ using Coding.Application.Features.Search;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Coding.Controllers;
 
-[ApiController, Authorize, Route("api/search")]
+[ApiController, Authorize, EnableRateLimiting("user-search"), Route("api/search")]
 public sealed class SearchController(ISender sender) : ControllerBase
 {
     [HttpGet]

@@ -6,6 +6,8 @@ public sealed class ProjectTask : Base
 {
     public Guid ProjectId { get; set; }
     public Project Project { get; set; } = null!;
+    public Guid? IssueId { get; set; }
+    public ProjectIssue? Issue { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public ProjectTaskStatus Status { get; set; }

@@ -9,6 +9,7 @@ Coding Platform is a collaborative software-development workspace with project m
 - Kanban tasks, activity history, dashboard analytics, search, notifications, and chat
 - SignalR presence and realtime project/chat events, scaled through Redis
 - Optional OpenAI-compatible assistant with repository context and usage tracking
+- Server-owned per-project Git repositories with status, staging, commits, branches, diffs, and history
 - Health checks, structured logs, rate limits, Problem Details errors, and Swagger
 - Multi-stage, non-root containers and CI for backend, frontend, tests, and images
 
@@ -146,15 +147,28 @@ Configuration uses normal ASP.NET Core precedence; environment variables overrid
 | `SMTP_ENABLED` | No | Enables real email delivery |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USE_SSL`, `SMTP_USE_STARTTLS`, `SMTP_USERNAME`, `SMTP_PASSWORD` | When SMTP enabled | SMTP transport; Gmail port 587 uses STARTTLS and a Google App Password |
 | `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME` | When SMTP enabled | Sender identity |
-| `AI_PROVIDER` | No | Selects `OpenAI` in production; local development uses Ollama |
-| `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_MODEL` | No | Ollama/vLLM endpoint and model |
-| `OPENAI_API_KEY` | No | Enables the external AI provider |
-| `OPENAI_MODEL`, `OPENAI_BASE_URL`, `OPENAI_MAX_OUTPUT_TOKENS` | No | AI provider settings |
+| `AI_PROVIDER` | No | Uses `Ollama` by default |
+| `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_MODEL` | Yes for AI | Ollama OpenAI-compatible endpoint and model |
+| `OPENAI_COMPATIBLE_VISION_MODEL` | For images | Ollama vision model |
+| `OPENAI_COMPATIBLE_API_KEY` | Hosted Ollama only | Authentication for a protected remote endpoint; local Ollama uses `ollama` |
+| `RepositoryStorage__RootPath` | No | Server-owned root for isolated per-project Git worktrees; defaults to `App_Data/repositories` |
 | `API_IMAGE`, `FRONTEND_IMAGE` | No | Prebuilt image names |
 
-For direct API execution, replace `_` names with ASP.NET paths where shown in JSON, for example `OpenAI__ApiKey`, `Cors__AllowedOrigins__0`, and `ConnectionStrings__Default`. See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
+For direct API execution, replace `_` names with ASP.NET paths where shown in JSON, for example `OpenAICompatible__BaseUrl`, `Cors__AllowedOrigins__0`, and `ConnectionStrings__Default`. See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
 
 Local SMTP credentials belong in .NET User Secrets; production credentials belong in the deployment secret manager. Setup, test-endpoint, Gmail, and troubleshooting instructions are in [docs/SMTP_SETUP.md](docs/SMTP_SETUP.md), with the implementation inventory in [docs/SMTP_INTEGRATION_AUDIT.md](docs/SMTP_INTEGRATION_AUDIT.md).
+
+## Source control behavior
+
+Each project is materialized into a server-owned repository under `RepositoryStorage__RootPath`; clients never submit repository roots or raw Git commands. The workspace source-control panel reads real porcelain status and supports per-file stage/unstage plus authenticated commits. Branch names and file paths are validated before Git is invoked, and every API operation checks project membership. Git remote push/pull, hosted pull requests, and destructive discard/delete operations are intentionally unavailable until remote credential storage and the corresponding permission model are implemented.
+
+The application does not expose a host terminal or arbitrary run command. Production-grade execution requires a separate non-root sandbox worker with resource, network, filesystem, and output limits; the UI must continue to report that capability as unavailable until such a provider is configured.
+
+## Account lifecycle and timed bans
+
+Administrative suspension is persisted as an auditable `UserBan` record with a reason, actor, start time, optional UTC expiry, permanent flag, and terminal status. The supported admin durations are 1 hour, 24 hours, 3 days, 7 days, 30 days, or permanent. Expired timed bans reactivate the account automatically during the next authentication attempt or authenticated request.
+
+Every access token carries the account `token_version`. Suspending, reactivating, expiring, or deleting an account increments that version, and JWT validation compares it with the current database value. This invalidates previously issued access tokens immediately; refresh tokens are also revoked when an administrator suspends an account. Administrators cannot act on themselves or on an account at the same or a higher platform-role level. The last active SuperAdmin protections remain enforced.
 
 ## Database migrations
 
@@ -309,18 +323,35 @@ Clients connect to `/hubs/collaboration` using JWT authentication. Presence is m
 
 ## AI provider configuration
 
-The external provider is optional. Configure only the API process:
+Ollama is the default AI provider. Configure only the API process:
 
 ```dotenv
-OPENAI_API_KEY=<secret-manager-reference>
-OPENAI_MODEL=gpt-5.1
-OPENAI_BASE_URL=https://api.openai.com/v1/
-OPENAI_MAX_OUTPUT_TOKENS=4096
+AI_PROVIDER=Ollama
+OPENAI_COMPATIBLE_BASE_URL=http://localhost:11434/v1/
+OPENAI_COMPATIBLE_MODEL=qwen2.5-coder:1.5b
+OPENAI_COMPATIBLE_VISION_MODEL=aydan-vision
+OPENAI_COMPATIBLE_API_KEY=ollama
+OPENAI_COMPATIBLE_MAX_OUTPUT_TOKENS=2048
 ```
 
-Never expose an API key through `VITE_*`. Rotate a key immediately if it appears in chat, logs, Git, or a browser bundle. With no key, the deterministic development provider is available; production operators should decide whether that fallback is acceptable.
+Never expose a hosted Ollama credential through `VITE_*`. A production API must use a separately hosted, protected Ollama endpoint; `localhost` works only when Ollama and the API share a host or network.
 
 ## Deployment
+
+### Render services
+
+The public frontend and API are separate services. Configure the frontend build with
+`VITE_API_URL=https://nexacode-g8dj.onrender.com/api` and
+`VITE_SIGNALR_URL=https://nexacode-g8dj.onrender.com/hubs/collaboration`. The client also
+contains these values as a safe fallback for `nexacoding.website`, but explicit Render
+environment variables are preferred.
+
+Account registration intentionally fails and rolls back when verification email delivery
+is unavailable. The API service therefore needs `SMTP_ENABLED=true`, `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_USE_STARTTLS`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`,
+and `FRONTEND_ORIGIN=https://www.nexacoding.website`. Guest AI additionally requires
+`AI_PROVIDER=Ollama`, `OPENAI_COMPATIBLE_BASE_URL`, and `OPENAI_COMPATIBLE_MODEL`. Run the migration-only
+command after every deployment containing migrations: `dotnet Coding.Api.dll --migrate`.
 
 The production runbook is [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). See the
 [deployment audit](docs/DEPLOYMENT_AUDIT.md), [domain/TLS guide](docs/DOMAIN_AND_SSL.md),

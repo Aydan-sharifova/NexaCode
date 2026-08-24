@@ -39,7 +39,7 @@ public sealed class GetAnalyticsDashboardHandler(
 
         var activity = db.ActivityLogs.AsNoTracking()
             .Where(x => x.CreatedAt >= from && x.CreatedAt <= to && x.ProjectId.HasValue && memberProjects.Contains(x.ProjectId.Value));
-        var tasks = db.ProjectTasks.AsNoTracking().Where(x => memberProjects.Contains(x.ProjectId));
+        var tasks = db.ProjectTasks.AsNoTracking().Where(x => memberProjects.Contains(x.ProjectId)&&x.CreatedAt>=from&&x.CreatedAt<=to);
         var completedTasks = await tasks.CountAsync(x => x.Status == ProjectTaskStatus.Done, ct);
         var totalTasks = await tasks.CountAsync(ct);
 
@@ -95,6 +95,23 @@ public sealed class GetAnalyticsDashboardHandler(
             ((x.EndAt ?? x.LastActivityAt) - x.StartAt).TotalMinutes,
             30));
 
+        var developer=new DeveloperAnalyticsDto(
+            await db.GitCommits.CountAsync(x=>x.UserId==currentUser.UserId&&x.CommitDate>=from&&x.CommitDate<=to&&memberProjects.Contains(x.ProjectId),ct),
+            await db.PullRequests.CountAsync(x=>x.AuthorId==currentUser.UserId&&x.CreatedAt>=from&&x.CreatedAt<=to&&memberProjects.Contains(x.ProjectId),ct),
+            await db.PullRequestReviews.CountAsync(x=>x.ReviewerId==currentUser.UserId&&x.CreatedAt>=from&&x.CreatedAt<=to&&memberProjects.Contains(x.PullRequest.ProjectId),ct),
+            await db.ActivityLogs.CountAsync(x=>x.UserId==currentUser.UserId&&x.ActionType=="DeploymentSucceeded"&&x.CreatedAt>=from&&x.CreatedAt<=to&&(x.ProjectId==null||memberProjects.Contains(x.ProjectId.Value)),ct),
+            await db.Projects.CountAsync(x=>memberProjects.Contains(x.ID),ct),
+            await activity.CountAsync(x=>x.UserId==currentUser.UserId,ct),
+            await db.UserFollows.CountAsync(x=>x.FollowingId==currentUser.UserId&&x.CreatedAt>=from&&x.CreatedAt<=to,ct),
+            await db.SocialPosts.CountAsync(x=>x.AuthorId==currentUser.UserId&&x.Type!=PostType.Code&&x.CreatedAt>=from&&x.CreatedAt<=to,ct),
+            await db.SocialPosts.CountAsync(x=>x.AuthorId==currentUser.UserId&&x.Type==PostType.Code&&x.CreatedAt>=from&&x.CreatedAt<=to,ct));
+        var projectRows=await db.Projects.AsNoTracking().Where(x=>memberProjects.Contains(x.ID)).Select(x=>new{x.ID,x.Name,x.IsPublic,
+            Views=db.ProjectViews.Count(v=>v.ProjectId==x.ID&&v.ViewedAt>=from&&v.ViewedAt<=to),
+            Likes=db.SocialPostReactions.Count(r=>r.Post.ProjectId==x.ID&&r.CreatedAt>=from&&r.CreatedAt<=to),
+            Saves=db.SavedProjects.Count(s=>s.ProjectId==x.ID&&s.CreatedAt>=from&&s.CreatedAt<=to),Contributors=x.Members.Count,
+            Deployments=db.ActivityLogs.Count(a=>a.ProjectId==x.ID&&a.ActionType=="DeploymentSucceeded"&&a.CreatedAt>=from&&a.CreatedAt<=to),
+            Activity=db.ActivityLogs.Count(a=>a.ProjectId==x.ID&&a.CreatedAt>=from&&a.CreatedAt<=to)}).OrderByDescending(x=>x.Activity).Take(100).ToListAsync(ct);
+        var projectAnalytics=projectRows.Select(x=>new ProjectAnalyticsDto(x.ID,x.Name,x.IsPublic,x.Views,0,false,x.Likes,x.Saves,x.Contributors,x.Deployments,x.Activity)).ToList();
         return new AnalyticsDashboardDto(from, to,
             new AnalyticsSummaryDto(
                 activeUsers.Count,
@@ -102,7 +119,7 @@ public sealed class GetAnalyticsDashboardHandler(
                 totalTasks == 0 ? 0 : Math.Round(100m * completedTasks / totalTasks, 1),
                 fileChanges,
                 Math.Round((decimal)sessionMinutes / 60m, 1)),
-            activeUsers, projectsOverTime, languages, weekly, monthly);
+            activeUsers, projectsOverTime, languages, weekly, monthly,developer,projectAnalytics);
     }
 }
 

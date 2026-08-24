@@ -7,7 +7,7 @@ ASP.NET Core converts `__` to a configuration path separator. Compose maps conve
 | API variable | Secret | Notes |
 |---|---:|---|
 | `ConnectionStrings__Default` | Yes | PostgreSQL connection string with TLS options appropriate to the provider |
-| `ConnectionStrings__Redis` | Yes | Redis endpoint, password, TLS, and `abortConnect=false` |
+| `ConnectionStrings__Redis` | Yes | StackExchange format (`host:port,password=...`) or provider URL (`redis://` / `rediss://`); provider URLs are normalized before cache, SignalR, and health-check registration |
 | `Jwt__Issuer` | No | Stable issuer URI/name |
 | `Jwt__Audience` | No | Stable client audience |
 | `Jwt__Key` | Yes | Random value of at least 32 bytes; rotate with an overlap strategy |
@@ -20,14 +20,15 @@ ASP.NET Core converts `__` to a configuration path separator. Compose maps conve
 | `Smtp__Password` | Yes | Gmail requires an app password when SMTP is enabled; never commit it |
 | `Smtp__FromEmail` | No | Verified sender address, normally matching the Gmail login |
 | `Smtp__ClientBaseUrl` | No | Public frontend origin used in verification and reset links |
-| `AI__Provider` | No | `Development`, `Ollama`, `OpenAICompatible`, or `OpenAI` |
+| `AI__Provider` | No | Use `Ollama` (or the equivalent `OpenAICompatible`) |
 | `OpenAICompatible__BaseUrl` | No | Ollama/vLLM OpenAI-compatible `/v1/` base URL |
 | `OpenAICompatible__Model` | No | Local or self-hosted model name |
 | `OpenAICompatible__VisionModel` | For images | Vision-capable model used when an image is attached |
 | `OpenAICompatible__ApiKey` | When required | Use `ollama` for local Ollama; use a secret for authenticated vLLM |
-| `OpenAI__ApiKey` | When provider is OpenAI | Server-side only |
 | `Database__ApplyMigrations` | No | Must remain false in normal production API containers |
 | `Database__SeedDevelopmentData` | No | Must remain false in production |
+| `Execution__Enabled` | No | Local development only; must remain false in the public production API |
+| `Execution__DotNetImage` | No | Fixed .NET SDK runtime image used by the local Docker sandbox |
 
 Validate configuration in a staging environment. Do not log environment dumps. Restrict secret-read permissions to the deployment identity, audit access, and rotate database, Redis, JWT, SMTP, and AI credentials independently.
 

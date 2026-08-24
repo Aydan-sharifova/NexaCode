@@ -20,6 +20,7 @@ interface AiAssistantPanelProps {
   contextText?: string;
   contextLabel?: string;
   onApplySuggestion: (content: string) => void;
+  externalRequest?: { id: string; action: AiAction; message: string };
 }
 
 const actions: Array<{ action: AiAction; label: string }> = [
@@ -42,6 +43,7 @@ export function AiAssistantPanel({
   contextText,
   contextLabel,
   onApplySuggestion,
+  externalRequest,
 }: AiAssistantPanelProps) {
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [message, setMessage] = useState("");
@@ -122,6 +124,13 @@ export function AiAssistantPanel({
       setStreaming(false);
     }
   };
+
+  const handledExternalRequest = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!externalRequest || handledExternalRequest.current === externalRequest.id) return;
+    handledExternalRequest.current = externalRequest.id;
+    void submit(externalRequest.action, externalRequest.message);
+  }, [externalRequest?.id]);
 
   const addAttachments = async (files: FileList | null) => {
     if (!files?.length) return;

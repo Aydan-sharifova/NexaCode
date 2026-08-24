@@ -21,7 +21,7 @@ public sealed class ProjectController(ISender sender) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ProjectDetails>> Create(CreateProjectRequest request, CancellationToken cancellationToken)
     {
-        var project = await sender.Send(new CreateProjectCommand(request.Name, request.Description, request.DefaultLanguage, request.IsPublic), cancellationToken);
+        var project = await sender.Send(new CreateProjectCommand(request.Name, request.Description, request.DefaultLanguage, request.IsPublic, request.DeadlineAt), cancellationToken);
         return CreatedAtAction(nameof(Get), new { projectId = project.Id }, project);
     }
 
@@ -30,6 +30,10 @@ public sealed class ProjectController(ISender sender) : ControllerBase
 
     [HttpDelete("{projectId:guid}")]
     public async Task<IActionResult> Delete(Guid projectId, CancellationToken cancellationToken) { await sender.Send(new DeleteProjectCommand(projectId), cancellationToken); return NoContent(); }
+
+    [HttpPut("{projectId:guid}/deadline"), Authorize(Roles = "SuperAdmin")]
+    public Task<ProjectDeadlineState> ExtendDeadline(Guid projectId, ExtendProjectDeadlineRequest request, CancellationToken cancellationToken) =>
+        sender.Send(new ExtendProjectDeadlineCommand(projectId, request.DeadlineAt), cancellationToken);
 
     [HttpGet("{projectId:guid}/members")]
     public Task<IReadOnlyList<ProjectMemberDetails>> Members(Guid projectId, CancellationToken cancellationToken) => sender.Send(new ListProjectMembersQuery(projectId), cancellationToken);
@@ -69,8 +73,9 @@ public sealed class ProjectController(ISender sender) : ControllerBase
     }
 }
 
-public sealed record CreateProjectRequest(string Name, string? Description, string DefaultLanguage, bool IsPublic);
+public sealed record CreateProjectRequest(string Name, string? Description, string DefaultLanguage, bool IsPublic, DateTime? DeadlineAt);
 public sealed record UpdateProjectRequest(string Name, string? Description, string DefaultLanguage, bool IsPublic);
 public sealed record InviteMemberRequest(string Email, ProjectRole Role);
 public sealed record ChangeRoleRequest(ProjectRole Role);
 public sealed record InvitationTokenRequest(string Token);
+public sealed record ExtendProjectDeadlineRequest(DateTime DeadlineAt);

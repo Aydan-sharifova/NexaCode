@@ -20,7 +20,7 @@ public sealed class SearchCodeTool(AppDbContext db, IAiSecretRedactionService re
         Description: "Case-insensitive substring search across project file contents. Read-only.",
         RiskLevel: AiToolRiskLevel.ReadOnly,
         AllowedModes: new HashSet<AiAgentMode> { AiAgentMode.Ask, AiAgentMode.Plan, AiAgentMode.Agent, AiAgentMode.Review },
-        RequiredRoles: new HashSet<ProjectRole> { ProjectRole.Owner, ProjectRole.Admin, ProjectRole.Member },
+        RequiredRoles: new HashSet<ProjectRole> { ProjectRole.Owner, ProjectRole.Admin, ProjectRole.Maintainer, ProjectRole.Developer, ProjectRole.Viewer },
         InputType: typeof(SearchCodeInput));
 
     public AiToolDescriptor Descriptor => StaticDescriptor;

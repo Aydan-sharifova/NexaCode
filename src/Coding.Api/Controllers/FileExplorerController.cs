@@ -2,12 +2,13 @@ using Coding.Application.Features.FileExplorer;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Coding.Application.Features.Repositories;
 
 namespace Coding.Controllers;
 
 [ApiController, Authorize, Route("api")]
-public sealed class FileExplorerController(ISender sender, IGitRepositoryService git, IConfiguration configuration) : ControllerBase
+public sealed class FileExplorerController(ISender sender, IGitRepositoryService git, IProjectRepositoryCoordinator coordinator, IConfiguration configuration) : ControllerBase
 {
     [HttpGet("projects/{projectId:guid}/nodes")]
     public Task<IReadOnlyList<WorkspaceNodeDto>> Tree(Guid projectId, CancellationToken ct) => sender.Send(new GetProjectFileTreeQuery(projectId), ct);
@@ -41,6 +42,7 @@ public sealed class FileExplorerController(ISender sender, IGitRepositoryService
     [HttpPost("projects/{projectId:guid}/files/upload")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(25 * 1024 * 1024)]
+    [EnableRateLimiting("uploads")]
     public async Task<ActionResult<IReadOnlyList<WorkspaceNodeDto>>> Upload(
         Guid projectId, [FromForm] List<IFormFile> files, [FromForm] Guid? parentId, CancellationToken ct)
     {
@@ -64,8 +66,7 @@ public sealed class FileExplorerController(ISender sender, IGitRepositoryService
                 return BadRequest($"Image '{name}' does not match a supported image format.");
             var text = IsTextFile(name) ? System.Text.Encoding.UTF8.GetString(bytes) : string.Empty;
             var node = await sender.Send(new CreateFileCommand(projectId, parentId, name, text), ct);
-            await git.InitializeAsync(projectId, "main", ct);
-            await git.WriteFileAsync(projectId, node.Path, bytes, ct);
+            if (!IsTextFile(name)) await sender.Send(new SaveBinaryFileContentCommand(node.Id, bytes), ct);
             uploaded.Add(node);
         }
         return StatusCode(StatusCodes.Status201Created, uploaded);
@@ -74,9 +75,10 @@ public sealed class FileExplorerController(ISender sender, IGitRepositoryService
     [HttpGet("files/{nodeId:guid}/raw")]
     public async Task<IActionResult> Raw(Guid nodeId, CancellationToken ct)
     {
-        var file = await sender.Send(new GetFileContentQuery(nodeId), ct);
         var projectId = await ProjectId(nodeId, ct);
-        var bytes = await git.ReadFileAsync(projectId, file.Path, ct);
+        await using var lease = await coordinator.AcquireAsync(projectId, ct);
+        var file = await sender.Send(new GetFileContentQuery(nodeId), ct);
+        var bytes = await git.ReadFileAsync(projectId, file.Path.TrimStart('/'), ct);
         return File(bytes, MimeType(file.Path), Path.GetFileName(file.Path));
     }
 

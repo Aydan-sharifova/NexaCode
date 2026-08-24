@@ -3,26 +3,32 @@ using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Diagnostics;
 using Coding.Application.Features.AiAssistant;
+using Coding.Application.Features.AiAgent;
 using Coding.Enums;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 
 namespace Coding.Infrastructure.AiAssistant;
 
 public sealed class OpenAiCompatibleProvider(
     HttpClient httpClient,
-    IOptions<OpenAiCompatibleOptions> options) : IAiProvider
+    IOptions<OpenAiCompatibleOptions> options,
+    IAiSecretRedactionService redaction,
+    ILogger<OpenAiCompatibleProvider> logger) : IAiProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly OpenAiCompatibleOptions _options = options.Value;
 
-    public string ProviderName => "OpenAICompatible";
+    public string ProviderName => "Ollama";
     public string Model => _options.Model;
 
     public async IAsyncEnumerable<AiStreamChunk> StreamAsync(
         AiRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var stopwatch = Stopwatch.StartNew();
         using var message = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri(new Uri(EnsureTrailingSlash(_options.BaseUrl)), "chat/completions"));
@@ -42,7 +48,7 @@ public sealed class OpenAiCompatibleProvider(
         {
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             throw new InvalidOperationException(
-                $"Local AI provider returned {(int)response.StatusCode}: {ReadError(body)}");
+                $"Local AI provider returned {(int)response.StatusCode}: {redaction.Redact(ReadError(body))}");
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -70,7 +76,7 @@ public sealed class OpenAiCompatibleProvider(
             using var document = JsonDocument.Parse(data);
             var root = document.RootElement;
             if (root.TryGetProperty("error", out var error))
-                throw new InvalidOperationException(ReadError(error.GetRawText()));
+                throw new InvalidOperationException(redaction.Redact(ReadError(error.GetRawText())));
 
             if (root.TryGetProperty("usage", out var usage))
             {
@@ -103,32 +109,36 @@ public sealed class OpenAiCompatibleProvider(
             InputTokens: inputTokens,
             OutputTokens: outputTokens,
             FinishReason: completed ? "stop" : "stream_ended");
+        logger.LogInformation(
+            "AI request completed via {Provider} model {Model} for action {Action} in {ElapsedMs} ms; input tokens {InputTokens}, output tokens {OutputTokens}.",
+            ProviderName, request.Images is { Count: > 0 } ? _options.VisionModel : Model, request.Action,
+            stopwatch.ElapsedMilliseconds, inputTokens, outputTokens);
     }
 
     private object BuildPayload(AiRequest request)
     {
         var messages = new List<object>
         {
-            new { role = "system", content = request.SystemInstructions }
+            new { role = "system", content = redaction.Redact(request.SystemInstructions) }
         };
         messages.AddRange(request.History.Select(history => new
         {
             role = history.Role == AiMessageRole.Assistant ? "assistant" : "user",
-            content = history.Content
+            content = redaction.Redact(history.Content)
         }));
 
         var userInput = new StringBuilder()
             .AppendLine($"Requested action: {request.Action}")
             .AppendLine($"Programming language: {request.ProgrammingLanguage}")
             .AppendLine()
-            .AppendLine(request.UserInstructions);
+            .AppendLine(redaction.Redact(request.UserInstructions));
 
         if (!string.IsNullOrWhiteSpace(request.RepositoryContext))
         {
             userInput
                 .AppendLine()
                 .AppendLine("Repository reference material follows:")
-                .AppendLine(request.RepositoryContext);
+                .AppendLine(redaction.Redact(request.RepositoryContext));
         }
 
         var images = request.Images ?? [];
@@ -166,7 +176,7 @@ public sealed class OpenAiCompatibleProvider(
             ["messages"] = messages,
             ["temperature"] = Math.Clamp(_options.Temperature, 0, 2),
             ["max_tokens"] = images.Count > 0
-                ? Math.Clamp(request.MaxOutputTokens ?? _options.MaxOutputTokens, 256, 1_024)
+                ? Math.Clamp(request.MaxOutputTokens ?? _options.MaxOutputTokens, 256, 8_192)
                 : Math.Clamp(request.MaxOutputTokens ?? _options.MaxOutputTokens, 256, 16_384),
             ["stream"] = true,
             ["stream_options"] = new { include_usage = true }

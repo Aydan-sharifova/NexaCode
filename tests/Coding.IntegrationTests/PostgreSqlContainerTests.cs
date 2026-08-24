@@ -1,4 +1,11 @@
+using Coding.Data;
+using Coding.Exceptions;
+using Coding.Infrastructure.Users;
+using Coding.Infrastructure.Repositories;
+using Coding.Application.Features.Repositories;
+using Coding.Models;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using System.Diagnostics;
 using Testcontainers.PostgreSql;
@@ -28,6 +35,84 @@ public sealed class PostgreSqlContainerTests : IAsyncLifetime
 
         result.Should().Be(1);
     }
+
+    [DockerFact]
+    public async Task Social_access_denies_interactions_when_either_user_has_blocked_the_other()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(postgres.GetConnectionString())
+            .Options;
+        await using var db = new AppDbContext(options);
+        await db.Database.MigrateAsync();
+
+        var now = DateTime.UtcNow;
+        var blocker = NewUser("blocker", now);
+        var blocked = NewUser("blocked", now);
+        db.Users.AddRange(blocker, blocked);
+        db.UserBlocks.Add(new UserBlock
+        {
+            ID = Guid.NewGuid(),
+            BlockerId = blocker.ID,
+            BlockedId = blocked.ID,
+            CreatedAt = now
+        });
+        await db.SaveChangesAsync();
+
+        var service = new SocialAccessService(db);
+        (await service.IsBlockedEitherWayAsync(blocker.ID, blocked.ID, default)).Should().BeTrue();
+        (await service.IsBlockedEitherWayAsync(blocked.ID, blocker.ID, default)).Should().BeTrue();
+        await FluentActions.Invoking(() => service.EnsureCanInteractAsync(blocked.ID, blocker.ID, default))
+            .Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [DockerFact]
+    public async Task Branch_snapshot_import_preserves_common_node_identity_versions_changes_and_soft_deletes_removed_files()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(postgres.GetConnectionString()).Options;
+        await using var db = new AppDbContext(options);
+        await db.Database.MigrateAsync();
+        var now = DateTime.UtcNow;
+        var owner = NewUser("branch_owner", now);
+        var project = new Project { ID = Guid.NewGuid(), Name = "Branch import", Owner = owner, OwnerId = owner.ID, DefaultLanguage = "C#", CreatedAt = now, CreatAt = now };
+        db.AddRange(owner, project);
+        await db.SaveChangesAsync();
+
+        await BranchWorkspaceSynchronizer.ImportAsync(db, project.ID, owner.ID,
+            [new GitBranchFile("src/app.cs", "class Main {}"u8.ToArray()), new GitBranchFile("README.md", "old"u8.ToArray())], default);
+        db.ChangeTracker.Clear();
+        var initial = await db.WorkspaceNodes.Include(node => node.FileContent).SingleAsync(node => node.ProjectId == project.ID && node.Name == "app.cs");
+        var initialId = initial.ID;
+        var initialToken = initial.FileContent!.ConcurrencyToken;
+
+        await BranchWorkspaceSynchronizer.ImportAsync(db, project.ID, owner.ID,
+            [new GitBranchFile("src/app.cs", "class Feature {}"u8.ToArray()), new GitBranchFile("new.txt", "new"u8.ToArray()), new GitBranchFile("assets/icon.bin", [0, 1, 2, 255])], default);
+        db.ChangeTracker.Clear();
+
+        var updated = await db.WorkspaceNodes.Include(node => node.FileContent).SingleAsync(node => node.ProjectId == project.ID && node.Name == "app.cs");
+        updated.ID.Should().Be(initialId);
+        updated.FileContent!.Content.Should().Be("class Feature {}");
+        updated.FileContent.VersionNumber.Should().Be(2);
+        updated.FileContent.ConcurrencyToken.Should().NotBe(initialToken);
+        (await db.WorkspaceNodes.AnyAsync(node => node.ProjectId == project.ID && node.Name == "new.txt")).Should().BeTrue();
+        var binary = await db.WorkspaceNodes.Include(node => node.FileContent).SingleAsync(node => node.ProjectId == project.ID && node.Name == "icon.bin");
+        binary.FileContent!.IsBinary.Should().BeTrue();
+        binary.FileContent.BinaryContent.Should().Equal(0, 1, 2, 255);
+        (await db.WorkspaceNodes.IgnoreQueryFilters().SingleAsync(node => node.ProjectId == project.ID && node.Name == "README.md")).IsDeleted.Should().BeTrue();
+    }
+
+    private static User NewUser(string name, DateTime now) => new()
+    {
+        ID = Guid.NewGuid(),
+        PublicId = $"usr_{Guid.NewGuid():N}",
+        UserName = $"{name}_{Guid.NewGuid():N}",
+        Email = $"{name}_{Guid.NewGuid():N}@tests.local",
+        FirstName = name,
+        LastName = "integration",
+        PasswordHash = "integration-test-only",
+        CreatedAt = now,
+        UpdatedAt = now,
+        LastSeen = now
+    };
 }
 
 public sealed class DockerFactAttribute : FactAttribute

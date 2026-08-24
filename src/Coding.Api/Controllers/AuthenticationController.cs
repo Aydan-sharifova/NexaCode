@@ -3,6 +3,7 @@ using Coding.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Coding.Application.Security;
 
 namespace Coding.Controllers;
 
@@ -13,10 +14,12 @@ public sealed class AuthenticationController : ControllerBase
 {
     private const string RefreshTokenCookie = "refresh_token";
     private readonly IAuthenticationService authenticationService;
+    private readonly IConfiguration configuration;
 
-    public AuthenticationController(IAuthenticationService authenticationService)
+    public AuthenticationController(IAuthenticationService authenticationService,IConfiguration configuration)
     {
         this.authenticationService = authenticationService;
+        this.configuration=configuration;
     }
 
     [AllowAnonymous]
@@ -60,6 +63,7 @@ public sealed class AuthenticationController : ControllerBase
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
     {
+        if (!CookieOriginAllowed()) return Forbid();
         if (!Request.Cookies.TryGetValue(RefreshTokenCookie, out var refreshToken))
             return Unauthorized();
 
@@ -74,6 +78,7 @@ public sealed class AuthenticationController : ControllerBase
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
+        if (!CookieOriginAllowed()) return Forbid();
         if (Request.Cookies.TryGetValue(RefreshTokenCookie, out var refreshToken))
         {
             await authenticationService.RevokeAsync(
@@ -132,16 +137,23 @@ public sealed class AuthenticationController : ControllerBase
 
     private CookieOptions GetRefreshTokenCookieOptions()
     {
+        var origin = Request.Headers.Origin.ToString();
+        var allowedOrigins=configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()??[];
+        var crossSiteRequest = Uri.TryCreate(origin, UriKind.Absolute, out var originUri)
+            && !string.Equals(originUri.Authority, Request.Host.Value, StringComparison.OrdinalIgnoreCase)
+            && RequestOriginPolicy.IsAllowed(origin,Request.Scheme,Request.Host.Value,allowedOrigins);
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = Request.IsHttps,
-            SameSite = SameSiteMode.Strict,
+            Secure = Request.IsHttps || crossSiteRequest,
+            SameSite = crossSiteRequest ? SameSiteMode.None : SameSiteMode.Strict,
             Path = "/api/auth",
             MaxAge = TimeSpan.FromDays(30),
             IsEssential = true
         };
     }
+
+    private bool CookieOriginAllowed()=>RequestOriginPolicy.IsAllowed(Request.Headers.Origin.ToString(),Request.Scheme,Request.Host.Value,configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()??[]);
 
     private static object ToPublicResponse(AuthResponse response) => new
     {

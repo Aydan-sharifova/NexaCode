@@ -59,6 +59,17 @@ export function NotificationBell() {
       navigate(`/notifications?invitation=${item.relatedEntityId}`);
     else if (item.type === "DirectMessage" && item.relatedEntityId)
       navigate(`/chat?conversation=${item.relatedEntityId}`);
+    else if (item.type === "Follow" && item.relatedEntityId)
+      navigate(`/profile/${item.relatedEntityId}`);
+    else if (["PostLike", "PostComment", "PostMention"].includes(item.type) && item.relatedEntityId)
+      navigate(`/feed?post=${item.relatedEntityId}`);
+    else if (["ProjectDeadlineSoon", "ProjectDeadlineExpired", "ProjectDeadlineExtended"].includes(item.type) && item.relatedEntityId)
+      navigate(`/projects/${item.relatedEntityId}/settings`);
+    else if (["PullRequestCreated", "PullRequestReviewed", "PullRequestCommented", "PullRequestMerged", "PullRequestClosed"].includes(item.type) && item.relatedEntityId)
+      navigate(`/projects/${item.relatedEntityId}/pull-requests`);
+    else if (item.type === "Achievement") navigate("/achievements");
+    else if (["AICompleted", "AITask", "AgentCompletion"].includes(item.type)) navigate("/notifications");
+    else if (item.type === "Ban") navigate("/settings?section=security");
   };
   return <div className="notification-control" ref={controlRef}>
     <button

@@ -76,6 +76,8 @@ public sealed class NotificationConfiguration : IEntityTypeConfiguration<Notific
         builder.Property(item => item.Title).HasMaxLength(160).IsRequired();
         builder.Property(item => item.Message).HasMaxLength(1000).IsRequired();
         builder.Property(item => item.RelatedEntityType).HasMaxLength(80);
+        builder.Property(item => item.DeduplicationKey).HasMaxLength(64);
+        builder.HasIndex(item => new { item.UserId, item.DeduplicationKey }).IsUnique().HasFilter("\"DeduplicationKey\" IS NOT NULL");
         builder.HasIndex(item => new { item.UserId, item.IsRead, item.CreatedAt });
         builder.HasOne(item => item.User).WithMany(item => item.Notifications).HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
     }

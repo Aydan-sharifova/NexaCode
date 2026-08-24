@@ -13,7 +13,14 @@ public sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Property(project => project.Name).HasMaxLength(120).IsRequired();
         builder.Property(project => project.Description).HasMaxLength(1000);
         builder.Property(project => project.DefaultLanguage).HasMaxLength(50);
+        builder.Property(project => project.DatabaseProvider).HasMaxLength(30);
+        builder.Property(project => project.DatabaseSchemaJson).HasColumnType("jsonb");
+        builder.Property(project => project.Status).HasConversion<int>();
+        builder.Property(project => project.ProtectedBranch).HasMaxLength(200).HasDefaultValue("main").IsRequired();
+        builder.Property(project => project.RequiredPullRequestApprovals).HasDefaultValue(1);
+        builder.ToTable(table => table.HasCheckConstraint("CK_Projects_RequiredPullRequestApprovals", "\"RequiredPullRequestApprovals\" BETWEEN 1 AND 5"));
         builder.HasIndex(project => project.OwnerId);
+        builder.HasIndex(project => new { project.Status, project.DeadlineAt });
         builder.HasOne(project => project.Owner)
             .WithMany(user => user.OwnedProjects)
             .HasForeignKey(project => project.OwnerId)
@@ -58,7 +65,11 @@ public sealed class ProjectFolderConfiguration : IEntityTypeConfiguration<Folder
 
 public sealed class ProjectCommitConfiguration : IEntityTypeConfiguration<GitCommit>
 {
-    public void Configure(EntityTypeBuilder<GitCommit> builder) => builder.HasQueryFilter(commit => !commit.Project.IsDeleted && !commit.IsDeleted);
+    public void Configure(EntityTypeBuilder<GitCommit> builder)
+    {
+        builder.HasQueryFilter(commit => !commit.Project.IsDeleted && !commit.IsDeleted);
+        builder.HasIndex(commit => new { commit.ProjectId, commit.CommitHash }).IsUnique();
+    }
 }
 
 public sealed class ProjectAiRequestConfiguration : IEntityTypeConfiguration<AIRequest>

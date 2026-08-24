@@ -16,6 +16,20 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(item => item.PublicId).HasMaxLength(8).IsRequired();
         builder.Property(item => item.PasswordHash).HasMaxLength(100);
         builder.Property(item => item.SuspensionReason).HasMaxLength(500);
+        builder.Property(item => item.Status).HasConversion<string>().HasMaxLength(20).HasDefaultValue(Coding.Enums.UserStatus.Active);
+    }
+}
+
+public sealed class UserBanConfiguration : IEntityTypeConfiguration<UserBan>
+{
+    public void Configure(EntityTypeBuilder<UserBan> builder)
+    {
+        builder.HasKey(item => item.Id);
+        builder.Property(item => item.Reason).HasMaxLength(500);
+        builder.Property(item => item.Status).HasConversion<string>().HasMaxLength(20);
+        builder.HasIndex(item => new { item.UserId, item.Status, item.ExpiresAt });
+        builder.HasOne(item => item.User).WithMany(item => item.Bans).HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(item => item.BannedByUser).WithMany().HasForeignKey(item => item.BannedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -59,6 +73,13 @@ public sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
                 ID = Guid.Parse("55555555-5555-5555-5555-555555555555"),
                 Name = "User",
                 Description = "Built-in platform user role.",
+                CreatAt = DateTime.UnixEpoch
+            },
+            new Role
+            {
+                ID = Guid.Parse("66666666-6666-6666-6666-666666666666"),
+                Name = "Moderator",
+                Description = "Built-in moderation role.",
                 CreatAt = DateTime.UnixEpoch
             });
     }

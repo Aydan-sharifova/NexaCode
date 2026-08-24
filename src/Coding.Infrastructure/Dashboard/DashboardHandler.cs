@@ -29,7 +29,7 @@ public sealed class GetDashboardHandler(
         var savesLastWeek = await db.FileVersions.AsNoTracking().CountAsync(x => projectIds.Contains(x.Node.ProjectId) && x.CreatedById == currentUser.UserId && x.CreatAt >= previousWeekStart && x.CreatAt < weekStart, ct);
         var completed = await db.ProjectTasks.AsNoTracking().CountAsync(x => projectIds.Contains(x.ProjectId) && x.Status == ProjectTaskStatus.Done, ct);
         var totalTasks = await db.ProjectTasks.AsNoTracking().CountAsync(x => projectIds.Contains(x.ProjectId), ct);
-        var uniqueMembers = await db.ProjectMembers.AsNoTracking().Where(x => projectIds.Contains(x.ProjectId)).Select(x => x.UserId).Distinct().CountAsync(ct);
+        var uniqueMembers = await db.ProjectMembers.AsNoTracking().Where(x => projectIds.Contains(x.ProjectId) && !x.User.IsDeleted).Select(x => x.UserId).Distinct().CountAsync(ct);
 
         var activityCounts = await db.ActivityLogs.AsNoTracking().Where(x => x.CreatedAt >= weekStart && x.ProjectId.HasValue && projectIds.Contains(x.ProjectId.Value))
             .GroupBy(x => x.CreatedAt.Date).Select(x => new { Date = x.Key, Count = x.Count() }).ToListAsync(ct);
@@ -39,7 +39,7 @@ public sealed class GetDashboardHandler(
         var projects = await db.Projects.AsNoTracking().Where(x => projectIds.Contains(x.ID)).OrderByDescending(x => x.UpdateAt ?? x.CreatedAt).Take(6)
             .Select(x => new DashboardProjectDto(x.ID, x.Name, x.Description, x.DefaultLanguage,
                 x.Tasks.Count == 0 ? 0 : (int)Math.Round(100.0 * x.Tasks.Count(t => t.Status == ProjectTaskStatus.Done) / x.Tasks.Count),
-                x.Members.Count, x.Tasks.Count(t => t.Status != ProjectTaskStatus.Done), x.UpdateAt ?? x.CreatedAt)).ToListAsync(ct);
+                x.Members.Count(member => !member.User.IsDeleted), x.Tasks.Count(t => t.Status != ProjectTaskStatus.Done), x.UpdateAt ?? x.CreatedAt)).ToListAsync(ct);
         var completion = totalTasks == 0 ? 0 : Math.Round(100m * completed / totalTasks, 1);
         var metrics = new List<DashboardMetricDto>
         {

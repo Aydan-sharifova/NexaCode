@@ -37,8 +37,13 @@ const DemoLoginPage = lazyRoute(() => import("./pages/DemoLoginPage").then((modu
 const ErrorPage = lazyRoute(() => import("./pages/ErrorPage").then((module) => ({ default: module.ErrorPage })));
 const DashboardLayout = lazyRoute(() => import("./layouts/DashboardLayout").then((module) => ({ default: module.DashboardLayout })));
 const DashboardPage = lazyRoute(() => import("./pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
+const FeedPage = lazyRoute(() => import("./pages/FeedPage").then((module) => ({ default: module.FeedPage })));
+const DiscoverPage = lazyRoute(() => import("./pages/DiscoverPage").then((module) => ({ default: module.DiscoverPage })));
+const SavedPage = lazyRoute(() => import("./pages/SavedPage").then((module) => ({ default: module.SavedPage })));
 const ProjectsPage = lazyRoute(() => import("./pages/ProjectsPage").then((module) => ({ default: module.ProjectsPage })));
 const ProjectSettingsPage = lazyRoute(() => import("./pages/ProjectSettingsPage").then((module) => ({ default: module.ProjectSettingsPage })));
+const PullRequestsPage = lazyRoute(() => import("./pages/PullRequestsPage").then((module) => ({ default: module.PullRequestsPage })));
+const DeploymentsPage = lazyRoute(() => import("./pages/DeploymentsPage").then((module) => ({ default: module.DeploymentsPage })));
 const InvitationPage = lazyRoute(() => import("./pages/InvitationPage").then((module) => ({ default: module.InvitationPage })));
 const FileExplorerPage = lazyRoute(() => import("./pages/FileExplorerPage").then((module) => ({ default: module.FileExplorerPage })));
 const ChatPage = lazyRoute(() => import("./pages/ChatPage").then((module) => ({ default: module.ChatPage })));
@@ -48,6 +53,7 @@ const NotificationCenterPage = lazyRoute(() => import("./pages/NotificationCente
 const KanbanPage = lazy(() => import("./pages/KanbanPage").then((module) => ({ default: module.KanbanPage })));
 const AdminActivityPage = lazyRoute(() => import("./pages/AdminActivityPage").then((module) => ({ default: module.AdminActivityPage })));
 const SettingsPage = lazyRoute(() => import("./pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
+const BlockedUsersPage = lazyRoute(() => import("./pages/BlockedUsersPage").then((module) => ({ default: module.BlockedUsersPage })));
 const HelpCenterPage = lazyRoute(() => import("./pages/HelpCenterPage").then((module) => ({ default: module.HelpCenterPage })));
 const TeamPage = lazyRoute(() => import("./pages/TeamPage").then((module) => ({ default: module.TeamPage })));
 const AnalyticsPage = lazyRoute(() => import("./pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
@@ -55,6 +61,18 @@ const AdminPage = lazyRoute(() => import("./pages/AdminPage").then((module) => (
 const ProjectToolPage = lazyRoute(() => import("./pages/ProjectToolPage").then((module) => ({ default: module.ProjectToolPage })));
 const PublicUserProfilePage = lazyRoute(() => import("./pages/PublicUserProfilePage").then((module) => ({ default: module.PublicUserProfilePage })));
 const PublicProjectPage = lazyRoute(() => import("./pages/PublicProjectPage").then((module) => ({ default: module.PublicProjectPage })));
+const MarketplacePage = lazyRoute(() => import("./pages/MarketplacePage").then((module) => ({ default: module.MarketplacePage })));
+const LiveRoomsPage = lazyRoute(() => import("./pages/LiveRoomsPage").then((module) => ({ default: module.LiveRoomsPage })));
+const LiveRoomPage = lazyRoute(() => import("./pages/LiveRoomPage").then((module) => ({ default: module.LiveRoomPage })));
+const AchievementsPage = lazyRoute(() => import("./pages/AchievementsPage").then((module) => ({ default: module.AchievementsPage })));
+const MentorPage = lazyRoute(() => import("./pages/MentorPage").then((module) => ({ default: module.MentorPage })));
+const ProjectPlannerPage = lazyRoute(() => import("./pages/ProjectPlannerPage").then((module) => ({ default: module.ProjectPlannerPage })));
+const KnowledgeGraphPage = lazyRoute(() => import("./pages/KnowledgeGraphPage").then((module) => ({ default: module.KnowledgeGraphPage })));
+const DebuggingTimelinePage = lazyRoute(() => import("./pages/DebuggingTimelinePage").then((module) => ({ default: module.DebuggingTimelinePage })));
+const AutonomousTestingPage = lazyRoute(() => import("./pages/AutonomousTestingPage").then((module) => ({ default: module.AutonomousTestingPage })));
+const ScreenshotToCodePage = lazyRoute(() => import("./pages/ScreenshotToCodePage").then((module) => ({ default: module.ScreenshotToCodePage })));
+const AiUiGeneratorPage = lazyRoute(() => import("./pages/AiUiGeneratorPage").then((module) => ({ default: module.AiUiGeneratorPage })));
+const ModerationPage = lazyRoute(() => import("./pages/ModerationPage").then((module) => ({ default: module.ModerationPage })));
 
 function ProtectedDashboard() {
   const { session, isInitializing } = useAuth();
@@ -67,6 +85,12 @@ function ProtectedDashboard() {
 function HomeRedirect() {
   const { session, isInitializing } = useAuth();
   if (isInitializing) return <PageSkeleton />;
+  const params = new URLSearchParams(window.location.search);
+  const accountAction = params.get("accountAction");
+  if (accountAction === "verify-email" || accountAction === "reset-password") {
+    params.delete("accountAction");
+    return <Navigate to={`/${accountAction}?${params.toString()}`} replace />;
+  }
   const demoBuild = import.meta.env.VITE_DEMO_MODE === "true";
   return <Navigate to={session ? (!session.user.isDemo && !session.user.isEmailVerified ? "/register" : "/dashboard") : demoBuild ? "/demo" : "/ai"} replace />;
 }
@@ -105,26 +129,45 @@ export default function App() {
       </Route>
       <Route element={<ProtectedDashboard />}>
         <Route path="/dashboard" element={<Suspense fallback={<div className="route-loader" role="status">Loading dashboard…</div>}><DashboardPage /></Suspense>} />
+        <Route path="/feed" element={<Suspense fallback={<div className="route-loader" role="status">Loading feed…</div>}><FeedPage /></Suspense>} />
+        <Route path="/discover" element={<Suspense fallback={<PageSkeleton />}><DiscoverPage /></Suspense>} />
+        <Route path="/saved" element={<Suspense fallback={<PageSkeleton />}><SavedPage /></Suspense>} />
         <Route path="/projects" element={<Suspense fallback={<div className="route-loader" role="status">Loading projects…</div>}><ProjectsPage /></Suspense>} />
+        <Route path="/marketplace" element={<Suspense fallback={<PageSkeleton />}><MarketplacePage /></Suspense>} />
+        <Route path="/live-rooms" element={<Suspense fallback={<PageSkeleton />}><LiveRoomsPage /></Suspense>} />
+        <Route path="/live-rooms/:roomId" element={<Suspense fallback={<PageSkeleton />}><LiveRoomPage /></Suspense>} />
+        <Route path="/achievements" element={<Suspense fallback={<PageSkeleton />}><AchievementsPage /></Suspense>} />
+        <Route path="/mentor" element={<Suspense fallback={<PageSkeleton />}><MentorPage /></Suspense>} />
+        <Route path="/planner" element={<Suspense fallback={<PageSkeleton />}><ProjectPlannerPage /></Suspense>} />
         <Route path="/projects/:projectId/settings" element={<Suspense fallback={<div className="route-loader" role="status">Loading project…</div>}><ProjectSettingsPage /></Suspense>} />
         <Route path="/projects/:projectId/workspace" element={<Suspense fallback={<div className="route-loader" role="status">Loading workspace…</div>}><FileExplorerPage /></Suspense>} />
+        <Route path="/projects/:projectId/pull-requests" element={<Suspense fallback={<div className="route-loader" role="status">Loading pull requests…</div>}><PullRequestsPage /></Suspense>} />
+        <Route path="/projects/:projectId/deployments" element={<Suspense fallback={<PageSkeleton />}><DeploymentsPage /></Suspense>} />
         <Route path="/projects/:projectId/board" element={<Suspense fallback={<div className="route-loader" role="status">Loading board…</div>}><KanbanPage /></Suspense>} />
         <Route path="/projects/:projectId/architecture" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="architecture" /></Suspense>} />
+        <Route path="/projects/:projectId/knowledge" element={<Suspense fallback={<PageSkeleton />}><KnowledgeGraphPage /></Suspense>} />
+        <Route path="/projects/:projectId/debugging" element={<Suspense fallback={<PageSkeleton />}><DebuggingTimelinePage /></Suspense>} />
+        <Route path="/projects/:projectId/autonomous-tests" element={<Suspense fallback={<PageSkeleton />}><AutonomousTestingPage /></Suspense>} />
+        <Route path="/projects/:projectId/screenshot-code" element={<Suspense fallback={<PageSkeleton />}><ScreenshotToCodePage /></Suspense>} />
+        <Route path="/projects/:projectId/ui-generator" element={<Suspense fallback={<PageSkeleton />}><AiUiGeneratorPage /></Suspense>} />
         <Route path="/projects/:projectId/database" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="database" /></Suspense>} />
         <Route path="/projects/:projectId/api" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="api" /></Suspense>} />
         <Route path="/projects/:projectId/versions" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="versions" /></Suspense>} />
         <Route path="/projects/:projectId/approvals" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="approvals" /></Suspense>} />
         <Route path="/projects/:projectId/billing" element={<Suspense fallback={<PageSkeleton />}><ProjectToolPage tool="billing" /></Suspense>} />
         <Route element={<RequireSystemRole roles={["SuperAdmin", "Admin"]} />}>
-          <Route path="/admin" element={<Suspense fallback={<div className="route-loader" role="status">Loading administration…</div>}><AdminPage /></Suspense>} />
+        <Route path="/admin" element={<Suspense fallback={<div className="route-loader" role="status">Loading administration…</div>}><AdminPage /></Suspense>} />
           <Route path="/admin/activity" element={<Suspense fallback={<div className="route-loader" role="status">Loading activity…</div>}><AdminActivityPage /></Suspense>} />
         </Route>
+        <Route element={<RequireSystemRole roles={["SuperAdmin", "Admin", "Moderator"]} />}><Route path="/moderation" element={<Suspense fallback={<PageSkeleton />}><ModerationPage /></Suspense>} /></Route>
         <Route path="/chat" element={<Suspense fallback={<div className="route-loader" role="status">Loading chat…</div>}><ChatPage /></Suspense>} />
         <Route path="/notifications" element={<Suspense fallback={<div className="route-loader" role="status">Loading notifications…</div>}><NotificationCenterPage /></Suspense>} />
         <Route path="/settings" element={<Suspense fallback={<div className="route-loader" role="status">Loading settings…</div>}><SettingsPage /></Suspense>} />
+        <Route path="/settings/blocked" element={<Suspense fallback={<PageSkeleton />}><BlockedUsersPage /></Suspense>} />
         <Route path="/help" element={<Suspense fallback={<div className="route-loader" role="status">Loading help center…</div>}><HelpCenterPage /></Suspense>} />
         <Route path="/team" element={<Suspense fallback={<div className="route-loader" role="status">Loading team…</div>}><TeamPage /></Suspense>} />
         <Route path="/users/:publicId" element={<Suspense fallback={<div className="route-loader" role="status">Loading public profile…</div>}><PublicUserProfilePage /></Suspense>} />
+        <Route path="/profile/:publicId" element={<Suspense fallback={<div className="route-loader" role="status">Loading public profile…</div>}><PublicUserProfilePage /></Suspense>} />
         <Route path="/public/projects/:projectId" element={<Suspense fallback={<div className="route-loader" role="status">Loading public project…</div>}><PublicProjectPage /></Suspense>} />
         <Route path="/analytics" element={<Suspense fallback={<div className="route-loader" role="status">Loading analytics…</div>}><AnalyticsPage /></Suspense>} />
         <Route path="/invitations/:token" element={<Suspense fallback={<div className="route-loader" role="status">Loading invitation…</div>}><InvitationPage /></Suspense>} />

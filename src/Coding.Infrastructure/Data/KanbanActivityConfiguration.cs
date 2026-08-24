@@ -14,6 +14,7 @@ public sealed class ProjectTaskConfiguration : IEntityTypeConfiguration<ProjectT
         builder.Property(item => item.Position).HasPrecision(28, 12);
         builder.HasIndex(item => new { item.ProjectId, item.Status, item.Position });
         builder.HasOne(item => item.Project).WithMany(item => item.Tasks).HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(item => item.Issue).WithMany(item => item.Tasks).HasForeignKey(item => item.IssueId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(item => item.CreatedByUser).WithMany().HasForeignKey(item => item.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -14,6 +14,8 @@ using Coding.Infrastructure.DatabaseMetadata;
 using Coding.Application.Features.DatabaseMetadata;
 using Coding.Application.Features.AiAssistant;
 using Coding.Infrastructure.AiAssistant;
+using Coding.Application.Features.Runtime;
+using Coding.Infrastructure.Runtime;
 using Coding.Infrastructure.AiAgent;
 using Coding.Infrastructure.Caching;
 using Coding.Application.Abstractions;
@@ -23,9 +25,28 @@ using Coding.Application.Features.Collaboration;
 using Coding.Infrastructure.Collaboration;
 using Coding.Application.Features.Users;
 using Coding.Infrastructure.Users;
+using Coding.Application.Features.Deployments;
+using Coding.Infrastructure.Deployments;
 using Coding.Application.Features.Repositories;
 using Coding.Infrastructure.Repositories;
 using Coding.Infrastructure.Kanban;
+using Coding.Infrastructure.Projects;
+using Coding.Application.Features.Marketplace;
+using Coding.Infrastructure.Marketplace;
+using Coding.Application.Features.Achievements;
+using Coding.Infrastructure.Achievements;
+using Coding.Application.Features.Mentor;
+using Coding.Application.Features.ProjectPlanner;
+using Coding.Application.Features.KnowledgeGraph;
+using Coding.Infrastructure.KnowledgeGraph;
+using Coding.Application.Features.Debugging;
+using Coding.Infrastructure.Debugging;
+using Coding.Application.Features.AutonomousTesting;
+using Coding.Infrastructure.AutonomousTesting;
+using Coding.Application.Features.ScreenshotToCode;
+using Coding.Infrastructure.ScreenshotToCode;
+using Coding.Application.Features.AiUiGenerator;
+using Coding.Infrastructure.AiUiGenerator;
 
 namespace Coding.Infrastructure;
 
@@ -64,6 +85,7 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(RepositoryStorageOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.RootPath), "Repository storage root is required.")
             .ValidateOnStart();
+        services.AddSingleton<IProjectRepositoryCoordinator, ProjectRepositoryCoordinator>();
         services.AddSingleton<IGitRepositoryService, NativeGitRepositoryService>();
         services.AddSingleton<ICacheService, MemoryCacheService>();
         services.AddScoped<IRoleService, RoleService>();
@@ -95,11 +117,11 @@ public static class DependencyInjection
         services.AddHostedService<DemoResetBackgroundService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddHostedService<TaskDeadlineMonitorService>();
+        services.AddHostedService<ProjectDeadlineMonitorService>();
         services.AddScoped<IActivityLogger, ActivityLogger>();
+        services.AddScoped<IProjectDeploymentService, ProjectDeploymentService>();
             services.AddScoped<IFileStorageService, LocalFileStorageService>();
             services.AddScoped<IDatabaseMetadataProvider, EfCoreDatabaseMetadataProvider>();
-        services.AddOptions<OpenAiOptions>()
-            .Bind(configuration.GetSection(OpenAiOptions.SectionName));
         services.AddOptions<AiProviderOptions>()
             .Bind(configuration.GetSection(AiProviderOptions.SectionName));
         services.AddOptions<OpenAiCompatibleOptions>()
@@ -109,8 +131,6 @@ public static class DependencyInjection
                            !string.IsNullOrWhiteSpace(options.Model),
                 "OpenAICompatible requires a valid BaseUrl and Model.")
             .ValidateOnStart();
-        services.AddHttpClient<OpenAiProvider>(client =>
-            client.Timeout = Timeout.InfiniteTimeSpan);
         services.AddHttpClient<OpenAiCompatibleProvider>(client =>
             client.Timeout = Timeout.InfiniteTimeSpan);
         services.AddScoped<DevelopmentAiProvider>();
@@ -121,7 +141,6 @@ public static class DependencyInjection
                 .Value;
             return selected.Provider.Trim().ToLowerInvariant() switch
             {
-                "openai" => provider.GetRequiredService<OpenAiProvider>(),
                 "ollama" or "openaicompatible" =>
                     provider.GetRequiredService<OpenAiCompatibleProvider>(),
                 "development" => provider.GetRequiredService<DevelopmentAiProvider>(),
@@ -134,9 +153,23 @@ public static class DependencyInjection
         services.AddScoped<IAiUsageTracker, AiUsageTracker>();
         services.AddScoped<IGuestAiService, GuestAiService>();
         services.AddScoped<IAiConversationService, AiConversationService>();
+        services.AddScoped<IMentorService, MentorService>();
+        services.AddScoped<IProjectPlannerService, ProjectPlannerService>();
+        services.AddScoped<IKnowledgeGraphService, KnowledgeGraphService>();
+        services.AddScoped<IDebuggingTimelineService, DebuggingTimelineService>();
+        services.AddScoped<IAutonomousTestAgentService, AutonomousTestAgentService>();
+        services.AddScoped<IScreenshotToCodeService, ScreenshotToCodeService>();
+        services.AddScoped<IAiUiGeneratorService, AiUiGeneratorService>();
+        services.AddOptions<ContainerRuntimeOptions>()
+            .Bind(configuration.GetSection(ContainerRuntimeOptions.SectionName));
+        services.AddSingleton<IRuntimeProvider, ContainerRuntimeProvider>();
+        services.AddScoped<ISocialAccessService, SocialAccessService>();
 
         // AI agent tool registry, authorization, approval policy, and execution.
         AiAgentServiceRegistration.AddAiAgentServices(services);
+        services.AddScoped<IMarketplaceManifestValidator, MarketplaceManifestValidator>();
+        services.AddScoped<IAchievementEvaluator, AchievementEvaluator>();
+        services.AddHostedService<AchievementBackfillService>();
 
         return services;
     }

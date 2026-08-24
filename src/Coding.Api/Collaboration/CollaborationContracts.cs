@@ -1,6 +1,7 @@
 namespace Coding.Api.Collaboration;
 using Coding.Application.Features.Chat;
 using Coding.Application.Features.Notifications;
+using Coding.Application.Features.LiveRooms;
 
 public sealed record TextRange(
     int StartLineNumber,
@@ -64,4 +65,9 @@ public interface ICollaborationClient
     Task ReceiveNotification(NotificationItem notification);
     Task NotificationRead(Guid? notificationId);
     Task UnreadCountUpdated(int count);
+    Task LiveRoomStateChanged(LiveRoomStateEvent state);
+    Task LiveRoomParticipantChanged(Guid roomId, LiveRoomParticipantItem participant);
+    Task LiveRoomMessageCreated(LiveRoomMessageItem message);
+    Task LiveRoomTaskChanged(LiveRoomTaskItem task);
+    Task LiveRoomReactionCreated(LiveRoomReactionItem reaction);
 }

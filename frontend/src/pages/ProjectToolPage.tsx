@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { DatabaseExplorer } from "../features/database-explorer/DatabaseExplorer";
 import { ApprovalCenter } from "../features/ai-approvals/ApprovalCenter";
+import { useQuery } from "@tanstack/react-query";
+import { repositoryApi, type GitCommit } from "../features/repository/api";
+import { databaseMetadataApi } from "../features/database-explorer/api";
+import { useProject } from "../features/projects/hooks";
+import { queryKeys } from "../services/queryKeys";
+import { Dialog } from "../components/ui/Dialog";
 
 export type ProjectTool = "architecture" | "database" | "api" | "versions" | "approvals" | "billing";
 
@@ -12,33 +18,44 @@ type OpenApiDocument = {
 
 const toolCopy: Record<ProjectTool, { eyebrow: string; title: string; description: string }> = {
   architecture: { eyebrow: "SYSTEM MAP", title: "Architecture", description: "A live-oriented view of the services that make up this NexaCode workspace." },
-  database: { eyebrow: "DATA MODEL", title: "Database schema", description: "Inspect the authenticated project’s real EF Core schema, relationships, constraints, and indexes." },
+  database: { eyebrow: "DATA MODEL", title: "Workspace database", description: "Choose a database engine and inspect this project’s isolated schema blueprint, relationships, constraints, and indexes." },
   api: { eyebrow: "OPENAPI", title: "API reference", description: "Generated from the backend OpenAPI document, so the reference stays aligned with running code." },
   versions: { eyebrow: "SOURCE CONTROL", title: "Version history", description: "File versions are available inside the workspace. Repository-wide Git integration has not been configured for this project." },
   approvals: { eyebrow: "AI GOVERNANCE", title: "AI approvals", description: "High-risk AI operations require an explicit decision before any tool can change project state." },
   billing: { eyebrow: "SUBSCRIPTION", title: "Billing & usage", description: "Plan and usage visibility without simulated payments or unsupported financial actions." },
 };
 
-const architectureNodes = [
-  ["React client", "React 19 · Vite", "Interface"],
-  ["Coding API", "ASP.NET Core", "Application API"],
-  ["AI agent", "Provider adapters · guarded tools", "Intelligence"],
-  ["Collaboration hub", "SignalR · Yjs", "Realtime"],
-  ["PostgreSQL", "Entity Framework Core", "Data"],
-];
-
 function EmptyCapability({ title, children }: { title: string; children: React.ReactNode }) {
   return <section className="nexa-empty"><span>◇</span><h2>{title}</h2><p>{children}</p></section>;
 }
 
-function ArchitectureView() {
+function ArchitectureView({ projectId }: { projectId: string }) {
+  const project = useProject(projectId);
+  const database = useQuery({ queryKey: queryKeys.database(projectId), queryFn: () => databaseMetadataApi.schema(projectId) });
+  const nodes = [
+    [project.data?.name ?? "Workspace", project.data?.defaultLanguage ?? "Project", "Application"],
+    ["Workspace files", "Editor · version history", "Source"],
+    [database.data?.provider ?? "Database not configured", database.data?.isConfigured ? `${database.data.schemas.length} schema` : "Choose in Database", "Data"],
+    ["Git repository", "Branches · commits · diffs", "Source control"],
+    ["AI assistant", "Project context · approvals", "Intelligence"],
+  ];
   return <div className="architecture-canvas" aria-label="NexaCode system architecture">
     <div className="architecture-flow" aria-hidden="true" />
-    {architectureNodes.map(([name, technology, type], index) => <article className={`architecture-node node-${index + 1}`} key={name}>
+    {nodes.map(([name, technology, type], index) => <article className={`architecture-node node-${index + 1}`} key={`${type}-${name}`}>
       <div><span className="status-dot" />{type}</div><h2>{name}</h2><code>{technology}</code>
     </article>)}
     <div className="architecture-legend"><span><i className="status-dot" /> configured</span><span>Connections show primary data flow</span></div>
   </div>;
+}
+
+function VersionHistoryView({ projectId }: { projectId: string }) {
+  const [selected, setSelected] = useState<GitCommit>();
+  const history = useQuery({ queryKey: queryKeys.repository.history(projectId), queryFn: () => repositoryApi.history(projectId, 100) });
+  const diff = useQuery({ queryKey: queryKeys.repository.commitDiff(projectId, selected?.sha ?? ""), queryFn: () => repositoryApi.commitDiff(projectId, selected!.sha), enabled: Boolean(selected) });
+  if (history.isLoading) return <div className="nexa-loading" role="status">Loading project history…</div>;
+  if (history.isError) return <section className="nexa-empty"><span>!</span><h2>Version history unavailable</h2><p>{history.error instanceof Error ? history.error.message : "History could not be loaded."}</p><button className="nexa-secondary-action" onClick={() => void history.refetch()}>Retry</button></section>;
+  if (!history.data?.length) return <EmptyCapability title="No commits yet">Save project files and create the first commit from Source Control in the workspace.</EmptyCapability>;
+  return <><div className="project-version-history"><header><strong>{history.data.length} commits</strong><span>History for this workspace repository</span></header>{history.data.map(commit => <button key={commit.sha} onClick={() => setSelected(commit)}><code>{commit.shortSha}</code><div><strong>{commit.message}</strong><span>{commit.authorName} · {new Date(commit.committedAt).toLocaleString()}</span></div><i>View changes →</i></button>)}</div><Dialog open={Boolean(selected)} title={selected ? `${selected.shortSha} · ${selected.message}` : "Commit changes"} onClose={() => setSelected(undefined)}><div className="commit-detail">{diff.isLoading ? <div className="nexa-loading">Loading changes…</div> : diff.isError ? <p>Changes could not be loaded.</p> : <pre>{diff.data?.patch || "This commit has no textual diff."}</pre>}</div></Dialog></>;
 }
 
 function ApiView() {
@@ -62,10 +79,10 @@ function ApiView() {
 }
 
 function ToolContent({ tool, projectId }: { tool: ProjectTool; projectId: string }) {
-  if (tool === "architecture") return <ArchitectureView />;
+  if (tool === "architecture") return <ArchitectureView projectId={projectId} />;
   if (tool === "api") return <ApiView />;
   if (tool === "database") return <DatabaseExplorer projectId={projectId} />;
-  if (tool === "versions") return <EmptyCapability title="Open a file to inspect versions">File-level history is connected to persisted versions in the <Link to={`/projects/${projectId}/workspace`}>workspace editor</Link>. Repository Git history will appear here after a Git provider is configured.</EmptyCapability>;
+  if (tool === "versions") return <VersionHistoryView projectId={projectId} />;
   if (tool === "approvals") return <div className="approval-workflow"><div className="workflow-steps">{["Request", "Context", "Analysis", "Proposal", "Review", "Apply", "Validate"].map((step, index) => <div key={step}><span>{index + 1}</span><strong>{step}</strong></div>)}</div><ApprovalCenter projectId={projectId}/></div>;
   return <div className="billing-grid"><article><span>CURRENT PLAN</span><h2>Workspace plan</h2><p>Subscription data is not connected to a payment provider.</p><button disabled title="No payment provider is configured">Manage plan</button></article><article><span>AI USAGE</span><h2>Usage metering ready</h2><p>AI usage records are stored by the backend. Customer billing is intentionally unavailable.</p></article></div>;
 }

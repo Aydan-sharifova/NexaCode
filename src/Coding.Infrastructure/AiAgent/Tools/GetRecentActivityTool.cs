@@ -11,14 +11,14 @@ namespace Coding.Infrastructure.AiAgent.Tools;
 /// <summary>
 /// Returns recent activity log entries for the project. Read-only.
 /// </summary>
-public sealed class GetRecentActivityTool(AppDbContext db) : IAiTool
+public sealed class GetRecentActivityTool(AppDbContext db, IAiSecretRedactionService redaction) : IAiTool
 {
     public static readonly AiToolDescriptor StaticDescriptor = new(
         Name: "get_recent_activity",
         Description: "Returns recent activity log entries for the project. Read-only.",
         RiskLevel: AiToolRiskLevel.ReadOnly,
         AllowedModes: new HashSet<AiAgentMode> { AiAgentMode.Ask, AiAgentMode.Plan, AiAgentMode.Agent, AiAgentMode.Review },
-        RequiredRoles: new HashSet<ProjectRole> { ProjectRole.Owner, ProjectRole.Admin, ProjectRole.Member },
+        RequiredRoles: new HashSet<ProjectRole> { ProjectRole.Owner, ProjectRole.Admin, ProjectRole.Maintainer, ProjectRole.Developer, ProjectRole.Viewer },
         InputType: typeof(GetRecentActivityInput));
 
     public AiToolDescriptor Descriptor => StaticDescriptor;
@@ -46,7 +46,7 @@ public sealed class GetRecentActivityTool(AppDbContext db) : IAiTool
             })
             .ToListAsync(cancellationToken);
 
-        var json = JsonSerializer.Serialize(new { entries });
+        var json = redaction.Redact(JsonSerializer.Serialize(new { entries }));
         return new AiReadToolGuard.AiTextResult($"{entries.Count} recent activity entries", json);
     }
 

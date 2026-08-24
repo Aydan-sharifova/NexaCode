@@ -51,8 +51,7 @@ public sealed class CollaborativeContentMaterializer(
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var strategy = db.Database.CreateExecutionStrategy();
-        var hash = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(work.Content))).ToLowerInvariant();
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(work.Content)));
 
         await strategy.ExecuteAsync(async () =>
         {
@@ -67,6 +66,8 @@ public sealed class CollaborativeContentMaterializer(
 
             var now = DateTime.UtcNow;
             state.Content = work.Content;
+            state.IsBinary = false;
+            state.BinaryContent = null;
             state.ContentHash = hash;
             state.ConcurrencyToken = Guid.NewGuid().ToString("N");
             state.VersionNumber++;

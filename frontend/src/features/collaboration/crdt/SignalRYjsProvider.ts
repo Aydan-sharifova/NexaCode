@@ -5,7 +5,7 @@ import { tokenStore } from "../../../services/tokenStore";
 import { decodeBinary, encodeBinary } from "./updateEncoding";
 import type { AwarenessUpdateMessage, CollaborativeState, DocumentUpdateMessage, SyncStatus } from "./types";
 
-const HUB_URL = import.meta.env.VITE_SIGNALR_URL ?? "/hubs/collaboration";
+import { COLLABORATION_HUB_URL as HUB_URL } from "../../../services/deployment";
 const remoteOrigin = Symbol("signalr-remote");
 
 export class SignalRYjsProvider {

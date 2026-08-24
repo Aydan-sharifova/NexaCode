@@ -1,0 +1,5 @@
+export type MarketplaceCategory = "ProjectTemplate" | "Theme" | "Plugin" | "AiAgent" | "Snippet" | "Component";
+export interface MarketplaceVersion { id: string; version: string; permissions: string[]; changelog?: string; checksum: string; isPublished: boolean; createdAt: string; publishedAt?: string; }
+export interface MarketplaceItem { id: string; slug: string; title: string; description: string; category: MarketplaceCategory; status: "Draft" | "Published" | "Suspended"; author: { id: string; publicId: string; userName: string; fullName: string; avatarUrl?: string }; tags: string[]; downloads: number; likes: number; isLiked: boolean; isSaved: boolean; latestVersion?: MarketplaceVersion; updatedAt: string; }
+export interface MarketplaceDetails { item: MarketplaceItem; versions: MarketplaceVersion[]; manifest?: Record<string, unknown>; canManage: boolean; }
+export interface CreateMarketplaceInput { title: string; description: string; category: MarketplaceCategory; tags: string[]; version: string; manifest: Record<string, unknown>; permissions: string[]; changelog?: string; }

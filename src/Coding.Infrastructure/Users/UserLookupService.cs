@@ -20,13 +20,14 @@ public sealed class UserLookupService(AppDbContext db) : IUserLookupService
     public Task<UserIdentity?> FindByIdentifierAsync(string identifier, CancellationToken ct) =>
         identifier.Contains('@') ? FindByEmailAsync(identifier, ct) : FindByPublicIdAsync(identifier, ct);
 
-    public async Task<UserSearchPage> SearchAsync(string query, int page, int pageSize, CancellationToken ct)
+    public async Task<UserSearchPage> SearchAsync(Guid viewerId, string query, int page, int pageSize, CancellationToken ct)
     {
         var trimmed = query.Trim();
         var normalized = trimmed.ToLowerInvariant();
         var exactEmail = trimmed.Contains('@');
         var offset = (page - 1) * pageSize;
-        var users = db.Users.AsNoTracking().Where(user => !user.IsDeleted && !user.IsSuspended);
+        var users = db.Users.AsNoTracking().Where(user => !user.IsDeleted && !user.IsSuspended &&
+            !db.UserBlocks.Any(block => block.BlockerId == viewerId && block.BlockedId == user.ID || block.BlockerId == user.ID && block.BlockedId == viewerId));
         users = exactEmail
             ? users.Where(user => user.Email.ToLower() == normalized)
             : users.Where(user => EF.Functions.ILike(user.PublicId, $"%{trimmed}%") ||

@@ -7,6 +7,7 @@ using Serilog;
 using Coding.Api.Collaboration;
 using Coding.Api.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using System.Security.Claims;
 
 try
 {
@@ -107,7 +108,18 @@ try
     }
 
     app.UseForwardedHeaders();
-    app.UseSerilogRequestLogging();
+    app.UseMiddleware<CorrelationIdMiddleware>();
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.EnrichDiagnosticContext = (diagnostics, context) =>
+        {
+            diagnostics.Set("CorrelationId", context.TraceIdentifier);
+            diagnostics.Set("UserId", context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? context.User.FindFirstValue("sub") ?? "anonymous");
+            if (context.Request.RouteValues.TryGetValue("projectId", out var projectId))
+                diagnostics.Set("ProjectId", projectId?.ToString());
+        };
+    });
     app.UseExceptionHandler();
     app.Use(async (context, next) =>
     {

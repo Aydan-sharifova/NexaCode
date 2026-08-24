@@ -65,6 +65,15 @@ describe("editorStore", () => {
     expect(useEditorStore.getState().closedTabHistory).toEqual(["large"]);
   });
 
+  it("updates an open tab after its file is renamed", () => {
+    useEditorStore.getState().openTab(tab("one"));
+    useEditorStore.getState().updateTabIdentity("one", "renamed.ts", "/src/renamed.ts");
+
+    expect(useEditorStore.getState().tabs.one.name).toBe("renamed.ts");
+    expect(useEditorStore.getState().tabs.one.path).toBe("/src/renamed.ts");
+    expect(useEditorStore.getState().openTabIds).toEqual(["one"]);
+  });
+
   it("preserves local edits while rebasing onto the latest server token", () => {
     useEditorStore.getState().openTab(tab("one"));
     useEditorStore.getState().updateContent("one", "local content");

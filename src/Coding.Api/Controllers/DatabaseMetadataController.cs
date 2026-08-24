@@ -9,6 +9,10 @@ namespace Coding.Controllers;
 public sealed class DatabaseMetadataController(ISender sender) : ControllerBase
 {
     [HttpGet("schema")]
-    public Task<IReadOnlyList<DatabaseSchemaDto>> GetSchema(Guid projectId, CancellationToken cancellationToken) =>
+    public Task<ProjectDatabaseDto> GetSchema(Guid projectId, CancellationToken cancellationToken) =>
         sender.Send(new GetProjectDatabaseSchemaQuery(projectId), cancellationToken);
+
+    [HttpPost("configure")]
+    public Task<ProjectDatabaseDto> Configure(Guid projectId, ConfigureProjectDatabaseRequest request, CancellationToken cancellationToken) =>
+        sender.Send(new ConfigureProjectDatabaseCommand(projectId, request.Provider, request.SchemaName), cancellationToken);
 }

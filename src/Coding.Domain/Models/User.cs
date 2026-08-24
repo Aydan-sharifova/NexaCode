@@ -1,4 +1,5 @@
 ﻿using System;
+using Coding.Enums;
 namespace Coding.Models
 {
     public class User : Base
@@ -32,6 +33,17 @@ namespace Coding.Models
         public bool IsSuspended { get; set; }
         public DateTime? SuspendedAt { get; set; }
         public string? SuspensionReason { get; set; }
+        public UserStatus Status { get; set; } = UserStatus.Active;
+        public int TokenVersion { get; set; }
+        public ICollection<UserBan> Bans { get; set; } = [];
+
+        public DeveloperProfile? DeveloperProfile { get; set; }
+
+        public ICollection<UserFollow> Followers { get; set; } = [];
+
+        public ICollection<UserFollow> Following { get; set; } = [];
+        public ICollection<UserBlock> BlockedUsers { get; set; } = [];
+        public ICollection<UserBlock> BlockedByUsers { get; set; } = [];
 
         public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
 
@@ -50,5 +62,8 @@ namespace Coding.Models
         public ICollection<Notification> Notifications { get; set; } = [];
 
         public ICollection<CodeHistory> CodeHistories { get; set; } = [];
+        public ICollection<PullRequest> AuthoredPullRequests { get; set; } = [];
+        public ICollection<PullRequestReview> PullRequestReviews { get; set; } = [];
+        public ICollection<PullRequestComment> PullRequestComments { get; set; } = [];
     }
 }

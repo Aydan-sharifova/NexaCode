@@ -1,0 +1,9 @@
+import { apiClient } from "../../services/apiClient";
+export type NodeKind = "File"|"Import"|"Class"|"Interface"|"Method"|"Controller"|"Service"|"ApiEndpoint"|"DatabaseTable"|"Component"|"Test";
+export interface GraphNode { id:string; sourceFileId?:string; kind:NodeKind; name:string; path?:string; line?:number; }
+export interface GraphEdge { id:string; fromNodeId:string; toNodeId:string; kind:string; confidence:number; evidence:string; }
+export interface KnowledgeGraph { snapshotId:string; projectId:string; version:number; sourceFingerprint:string; indexedAt:string; fileCount:number; totalNodes:number; totalEdges:number; isTruncated:boolean; nodes:GraphNode[]; edges:GraphEdge[]; }
+export interface ImpactItem { nodeId:string; sourceFileId?:string; kind:NodeKind; name:string; path?:string; distance:number; relationship:string; confidence:number; }
+export interface ImpactAnalysis { snapshotId:string; selectedNodeId:string; selectedName:string; affectedFiles:ImpactItem[]; services:ImpactItem[]; apiEndpoints:ImpactItem[]; tests:ImpactItem[]; databaseObjects:ImpactItem[]; frontendComponents:ImpactItem[]; dependencies:ImpactItem[]; usedBy:ImpactItem[]; modelReport?:string; modelAvailable:boolean; provider:string; model?:string; }
+export const graphKeys={graph:(projectId:string)=>["knowledge-graph",projectId] as const,impact:(projectId:string,nodeId:string)=>["knowledge-graph",projectId,"impact",nodeId] as const};
+export const knowledgeGraphApi={get:(projectId:string)=>apiClient.get<KnowledgeGraph>(`/projects/${projectId}/knowledge-graph`),index:(projectId:string)=>apiClient.post<KnowledgeGraph>(`/projects/${projectId}/knowledge-graph/index`,{}),impact:(projectId:string,nodeId:string)=>apiClient.get<ImpactAnalysis>(`/projects/${projectId}/knowledge-graph/nodes/${nodeId}/impact`),report:(projectId:string,nodeId:string)=>apiClient.post<ImpactAnalysis>(`/projects/${projectId}/knowledge-graph/nodes/${nodeId}/impact-report`,{})};

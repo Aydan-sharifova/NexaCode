@@ -94,4 +94,18 @@ public sealed class CoreWorkflowValidationTests
         file.IsValid.Should().BeTrue();
         task.IsValid.Should().BeTrue();
     }
+
+    [Theory]
+    [InlineData("../secret")]
+    [InlineData("/absolute")]
+    [InlineData(".git")]
+    [InlineData("line\nbreak.cs")]
+    [InlineData("trailing.")]
+    public async Task Workspace_names_reject_path_and_repository_control_values(string name)
+    {
+        var result = await new CreateFileValidator().ValidateAsync(
+            new CreateFileCommand(Guid.NewGuid(), null, name, ""));
+
+        result.IsValid.Should().BeFalse();
+    }
 }

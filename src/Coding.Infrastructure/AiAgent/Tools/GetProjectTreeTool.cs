@@ -19,7 +19,7 @@ public sealed class GetProjectTreeTool(AppDbContext db, IAiSecretRedactionServic
         Description: "Returns the project tree as a list of file and folder paths. Read-only.",
         RiskLevel: AiToolRiskLevel.ReadOnly,
         AllowedModes: new HashSet<AiAgentMode> { AiAgentMode.Ask, AiAgentMode.Plan, AiAgentMode.Agent, AiAgentMode.Review },
-        RequiredRoles: new HashSet<ProjectRole> { ProjectRole.Owner, ProjectRole.Admin, ProjectRole.Member },
+        RequiredRoles: new HashSet<ProjectRole> { ProjectRole.Owner, ProjectRole.Admin, ProjectRole.Maintainer, ProjectRole.Developer, ProjectRole.Viewer },
         InputType: typeof(GetProjectTreeInput));
 
     public AiToolDescriptor Descriptor => StaticDescriptor;

@@ -1,0 +1,5 @@
+import{apiClient}from"../../services/apiClient";
+export type UiFile={path:string;existingNodeId?:string;existingContent?:string;generatedContent:string;concurrencyToken?:string};
+export type UiGeneration={id:string;projectId:string;prompt:string;includeSampleData:boolean;status:"Draft"|"Applied"|"Failed";analysis:string;previewHtml:string;files:UiFile[];modelProvider?:string;modelName?:string;generatedAt:string;appliedAt?:string};
+export const uiGeneratorKeys={list:(p:string)=>["ui-generations",p]as const,detail:(p:string,id:string)=>["ui-generations",p,id]as const};
+export const uiGeneratorApi={list:(p:string)=>apiClient.get<UiGeneration[]>(`/projects/${p}/ui-generations`),get:(p:string,id:string)=>apiClient.get<UiGeneration>(`/projects/${p}/ui-generations/${id}`),generate:(p:string,prompt:string,includeSampleData:boolean)=>apiClient.post<UiGeneration>(`/projects/${p}/ui-generations`,{prompt,includeSampleData}),apply:(p:string,id:string)=>apiClient.post<UiGeneration>(`/projects/${p}/ui-generations/${id}/apply`,{confirm:true})};

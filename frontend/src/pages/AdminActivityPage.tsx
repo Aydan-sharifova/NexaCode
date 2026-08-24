@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState";
 import { activityApi, isGuid, type ActivityFilters } from "../features/activities/api";
 import { usePageTranslation } from "../hooks/usePageTranslation";
+import { queryKeys } from "../services/queryKeys";
 
 export function AdminActivityPage() {
   const { pt, locale } = usePageTranslation();
@@ -11,7 +12,7 @@ export function AdminActivityPage() {
   const [projectId, setProjectId] = useState("");
   const invalidUserId = userId.trim().length > 0 && !isGuid(userId);
   const invalidProjectId = projectId.trim().length > 0 && !isGuid(projectId);
-  const logs = useQuery({ queryKey: ["admin", "activities", filters], queryFn: () => activityApi.list(filters) });
+  const logs = useQuery({ queryKey: [...queryKeys.activities, filters], queryFn: () => activityApi.list(filters) });
 
   const displayAction = (value: string) => value === "Login" ? pt("login") : value === "Logout" ? pt("logout") : value;
   const displayEntity = (value: string) => value === "User" ? pt("user") : value;

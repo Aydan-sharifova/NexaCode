@@ -70,7 +70,7 @@ public sealed class DemoDataSeeder(
 
         project.Members.Add(ProjectMember(project, owner, ProjectRole.Owner, now.AddDays(-18)));
         project.Members.Add(ProjectMember(project, admin, ProjectRole.Admin, now.AddDays(-16)));
-        project.Members.Add(ProjectMember(project, member, ProjectRole.Member, now.AddDays(-12)));
+        project.Members.Add(ProjectMember(project, member, ProjectRole.Developer, now.AddDays(-12)));
 
         var src = Folder(project, null, "src", now.AddDays(-18));
         var components = Folder(project, src, "components", now.AddDays(-17));

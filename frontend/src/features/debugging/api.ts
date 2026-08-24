@@ -1,0 +1,7 @@
+import { apiClient } from "../../services/apiClient";
+export type IncidentKind="Runtime"|"Build"|"Test"; export type IncidentStatus="Open"|"Analyzed"|"Resolved"; export type Confidence="Low"|"Medium"|"High";
+export interface DebugEvidence {id:string;kind:string;confidence:Confidence;label:string;summary:string;workspaceNodeId?:string;fileVersionId?:string;commitSha?:string;evidenceAt?:string}
+export interface DebugIncident {id:string;projectId:string;workspaceNodeId?:string;kind:IncidentKind;status:IncidentStatus;language:string;errorSummary:string;stackTrace?:string;stdout?:string;stderr?:string;exitCode?:number;timedOut:boolean;durationMs:number;occurredAt:string;analyzedAt?:string;rootCause?:string;likelyRegression?:string;suggestedFix?:string;relevantCommitSha?:string;regressionConfidence?:Confidence;modelProvider?:string;modelName?:string;evidence:DebugEvidence[]}
+export interface DebugTimeline {items:DebugIncident[];total:number}
+export const debuggingKeys={timeline:(projectId:string)=>["debugging",projectId] as const,incident:(projectId:string,id:string)=>["debugging",projectId,id] as const};
+export const debuggingApi={list:(projectId:string)=>apiClient.get<DebugTimeline>(`/projects/${projectId}/debugging`),get:(projectId:string,id:string)=>apiClient.get<DebugIncident>(`/projects/${projectId}/debugging/${id}`),analyze:(projectId:string,id:string)=>apiClient.post<DebugIncident>(`/projects/${projectId}/debugging/${id}/analyze`,{useModel:true})};

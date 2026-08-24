@@ -6,9 +6,9 @@ using System.Linq.Expressions;
 namespace Coding.Application.Features.FileExplorer;
 
 public sealed record WorkspaceNodeDto(Guid Id, Guid ProjectId, Guid? ParentId, string Name, WorkspaceNodeType NodeType, string Path, bool HasChildren, DateTime CreatedAt);
-public sealed record FileContentDto(Guid NodeId, string Path, string Content, string ContentHash, string ConcurrencyToken, int VersionNumber, DateTime UpdatedAt);
+public sealed record FileContentDto(Guid NodeId, string Path, string Content, bool IsBinary, string ContentHash, string ConcurrencyToken, int VersionNumber, DateTime UpdatedAt);
 public sealed record FileVersionDto(Guid Id, Guid NodeId, int VersionNumber, string ContentHash, Guid CreatedById, string CreatedBy, DateTime CreatedAt);
-public sealed record FileVersionDetails(Guid Id, Guid NodeId, int VersionNumber, string Content, string ContentHash, Guid CreatedById, string CreatedBy, DateTime CreatedAt);
+public sealed record FileVersionDetails(Guid Id, Guid NodeId, int VersionNumber, string Content, bool IsBinary, string ContentHash, Guid CreatedById, string CreatedBy, DateTime CreatedAt);
 public sealed record VersionComparison(FileVersionDetails Left, FileVersionDetails Right, bool IsIdentical);
 
 public sealed record CreateFolderCommand(Guid ProjectId, Guid? ParentId, string Name) : IRequest<WorkspaceNodeDto>;
@@ -18,6 +18,7 @@ public sealed record DeleteNodeCommand(Guid NodeId) : IRequest;
 public sealed record RestoreDeletedNodeCommand(Guid NodeId) : IRequest;
 public sealed record MoveNodeCommand(Guid NodeId, Guid? ParentId) : IRequest<WorkspaceNodeDto>;
 public sealed record SaveFileContentCommand(Guid NodeId, string Content, string ConcurrencyToken) : IRequest<FileContentDto>;
+public sealed record SaveBinaryFileContentCommand(Guid NodeId, byte[] Content) : IRequest;
 public sealed record RestoreFileVersionCommand(Guid NodeId, Guid VersionId) : IRequest<FileContentDto>;
 public sealed record GetProjectFileTreeQuery(Guid ProjectId) : IRequest<IReadOnlyList<WorkspaceNodeDto>>;
 public sealed record GetFolderChildrenQuery(Guid ProjectId, Guid? ParentId) : IRequest<IReadOnlyList<WorkspaceNodeDto>>;
@@ -30,7 +31,14 @@ public sealed record CompareFileVersionsQuery(Guid NodeId, Guid LeftId, Guid Rig
 internal static class NodeNameRules
 {
     private static readonly char[] Invalid = ['<', '>', ':', '"', '/', '\\', '|', '?', '*', '\0'];
-    public static bool IsValid(string name) => !string.IsNullOrWhiteSpace(name) && name is not "." and not ".." && name.IndexOfAny(Invalid) < 0 && !name.EndsWith(' ') && !name.EndsWith('.');
+    public static bool IsValid(string name) =>
+        !string.IsNullOrWhiteSpace(name) &&
+        name is not "." and not ".." &&
+        !name.Equals(".git", StringComparison.OrdinalIgnoreCase) &&
+        name.IndexOfAny(Invalid) < 0 &&
+        !name.Any(char.IsControl) &&
+        !name.EndsWith(' ') &&
+        !name.EndsWith('.');
 }
 
 public abstract class NodeNameValidator<T> : AbstractValidator<T>
@@ -41,3 +49,4 @@ public sealed class CreateFolderValidator : NodeNameValidator<CreateFolderComman
 public sealed class CreateFileValidator : NodeNameValidator<CreateFileCommand> { public CreateFileValidator() { RuleFor(x => x.ProjectId).NotEmpty(); ValidateName(x => x.Name); RuleFor(x => x.Content).NotNull(); } }
 public sealed class RenameNodeValidator : NodeNameValidator<RenameNodeCommand> { public RenameNodeValidator() { RuleFor(x => x.NodeId).NotEmpty(); ValidateName(x => x.Name); } }
 public sealed class SaveFileContentValidator : AbstractValidator<SaveFileContentCommand> { public SaveFileContentValidator() { RuleFor(x => x.NodeId).NotEmpty(); RuleFor(x => x.Content).NotNull(); RuleFor(x => x.ConcurrencyToken).NotEmpty().Length(32); } }
+public sealed class SaveBinaryFileContentValidator : AbstractValidator<SaveBinaryFileContentCommand> { public SaveBinaryFileContentValidator() { RuleFor(x => x.NodeId).NotEmpty(); RuleFor(x => x.Content).NotNull().Must(value => value.Length is > 0 and <= 10 * 1024 * 1024).WithMessage("Binary files must contain at most 10 MB."); } }

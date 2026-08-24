@@ -31,6 +31,7 @@ export function useEditorTabs() {
       return;
     }
     const file = await queryClient.fetchQuery({ queryKey: ["file-content", node.id], queryFn: () => fileExplorerApi.content(node.id) });
+    if (file.isBinary) throw new Error("This binary file cannot be edited as text. Download it from the workspace instead.");
     openTab({ id: node.id, name: node.name, path: file.path, language: detectLanguage(node.name), content: file.content, savedContent: file.content, concurrencyToken: file.concurrencyToken });
   };
   const closeTab = (id: string) => { const url = useEditorStore.getState().tabs[id]?.objectUrl; if (url) URL.revokeObjectURL(url); closeStoreTab(id); };

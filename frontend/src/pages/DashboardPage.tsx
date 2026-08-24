@@ -12,6 +12,7 @@ import {
 } from "../hooks/usePageTranslation";
 import { dashboardApi } from "../services/dashboardApi";
 import type { DashboardProject, ProjectSummary } from "../types/dashboard";
+import { queryKeys } from "../services/queryKeys";
 
 const colors = [
   "#6c5ce7",
@@ -51,7 +52,7 @@ const summary = (project: DashboardProject, index: number): ProjectSummary => ({
 
 export function DashboardPage() {
   const dashboard = useQuery({
-    queryKey: ["dashboard"],
+    queryKey: queryKeys.dashboard,
     queryFn: dashboardApi.get,
     staleTime: 30_000,
   });

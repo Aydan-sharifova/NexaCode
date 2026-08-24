@@ -57,7 +57,13 @@ public sealed class AiSecretRedactionService : IAiSecretRedactionService
         // Common API key prefixes
         (new Regex(@"\b(sk-[A-Za-z0-9_\-]{16,}|xox[abprs]-[A-Za-z0-9_\-]{8,})",
             RegexOptions.Compiled),
-            RedactedMarker)
+            RedactedMarker),
+
+        // Generic secret-bearing configuration assignments. Require a
+        // reasonably long value to avoid masking ordinary variable names.
+        (new Regex("""(?i)\b(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|private[_-]?key|secret)\s*[=:]\s*['"]?[^\s;'",]{8,}""",
+            RegexOptions.Compiled),
+            $"$1={RedactedMarker}")
     };
 
     private static readonly HashSet<string> BlockedFileNames = new(StringComparer.OrdinalIgnoreCase)
@@ -74,7 +80,11 @@ public sealed class AiSecretRedactionService : IAiSecretRedactionService
         "secrets.json",
         "secrets.yaml",
         "secrets.yml",
-        "appsettings.Production.json"
+        "appsettings.Production.json",
+        ".npmrc",
+        ".pypirc",
+        ".netrc",
+        ".dockercfg"
     };
 
     private static readonly string[] BlockedFileSuffixes =
@@ -98,6 +108,10 @@ public sealed class AiSecretRedactionService : IAiSecretRedactionService
         var name = Path.GetFileName(normalized);
         if (string.IsNullOrEmpty(name)) return false;
         if (BlockedFileNames.Contains(name)) return true;
+        if (name.StartsWith(".env.", StringComparison.OrdinalIgnoreCase)) return true;
+        if (name.Equals("appsettings.json", StringComparison.OrdinalIgnoreCase) ||
+            name.StartsWith("appsettings.", StringComparison.OrdinalIgnoreCase) &&
+            name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return true;
         foreach (var suffix in BlockedFileSuffixes)
             if (name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return true;
         return false;

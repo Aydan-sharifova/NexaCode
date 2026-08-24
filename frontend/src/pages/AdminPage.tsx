@@ -6,6 +6,7 @@ import { adminApi, type AdminUser, type AdminUserDetails, type ProgrammingLangua
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../contexts/ToastContext";
 import { usePageTranslation } from "../hooks/usePageTranslation";
+import { queryKeys } from "../services/queryKeys";
 
 type Confirmation = { kind: "suspend" | "delete-user" | "delete-project"; id: string; active?: boolean };
 export function AdminPage() {
@@ -27,11 +28,30 @@ export function AdminPage() {
   const action = useMutation({
     mutationFn: async () => {
       if (!confirm) return;
-      if (confirm.kind === "suspend") await adminApi.suspension(confirm.id, !confirm.active, !confirm.active ? prompt("Bloklama səbəbi") ?? undefined : undefined);
+      if (confirm.kind === "suspend") {
+        const suspending = confirm.active === true;
+        const reason = suspending ? prompt("Bloklama səbəbi")?.trim() : undefined;
+        if (suspending && !reason) throw new Error("Bloklama səbəbi mütləqdir.");
+        const duration = suspending ? prompt("Müddət: 1h, 24h, 3d, 7d, 30d və ya permanent", "24h")?.trim().toLowerCase() : undefined;
+        const durations: Record<string, number> = { "1h": 1, "24h": 24, "3d": 72, "7d": 168, "30d": 720 };
+        if (suspending && duration !== "permanent" && !durations[duration ?? ""]) throw new Error("Müddət 1h, 24h, 3d, 7d, 30d və ya permanent olmalıdır.");
+        const expiresAt = suspending && duration !== "permanent" ? new Date(Date.now() + durations[duration!] * 3_600_000).toISOString() : undefined;
+        await adminApi.suspension(confirm.id, suspending, reason, expiresAt);
+      }
       if (confirm.kind === "delete-user") { const reason = prompt("İstifadəçinin silinmə səbəbi"); if (!reason) throw new Error("Səbəb mütləqdir."); await adminApi.deleteUser(confirm.id, reason); }
       if (confirm.kind === "delete-project") { const reason = prompt("Layihənin silinmə səbəbi"); if (!reason) throw new Error("Səbəb mütləqdir."); await adminApi.deleteProject(confirm.id, reason); }
     },
-    onSuccess: () => { if (confirm?.kind === "delete-user") setSelected(undefined); setConfirm(undefined); refresh(); show("Əməliyyat uğurla tamamlandı."); },
+    onSuccess: () => {
+      if (confirm?.kind === "delete-user") {
+        setSelected(undefined);
+        void qc.invalidateQueries({ queryKey: queryKeys.teamDirectory });
+        void qc.invalidateQueries({ queryKey: queryKeys.projects });
+        void qc.invalidateQueries({ queryKey: queryKeys.dashboard });
+      }
+      setConfirm(undefined);
+      refresh();
+      show("Əməliyyat uğurla tamamlandı.");
+    },
     onError: (error) => show(error.message, "error"),
   });
   const data = tab === "users" ? users.data : tab === "projects" ? projects.data : undefined; const loading = tab === "users" ? users.isLoading : tab === "projects" ? projects.isLoading : languages.isLoading; const error = tab === "users" ? users.error : tab === "projects" ? projects.error : languages.error;
@@ -52,7 +72,7 @@ function UserEditForm({ user, pending, onCancel, onSave }: { user: AdminUserDeta
   return <form className="admin-edit-form" onSubmit={(event) => { event.preventDefault(); onSave(value); }}><h2>İstifadəçini dəyiş</h2><label>Ad<input required value={value.firstName} onChange={(event) => field("firstName", event.target.value)} /></label><label>Soyad<input required value={value.lastName} onChange={(event) => field("lastName", event.target.value)} /></label><label>Username<input required value={value.userName} onChange={(event) => field("userName", event.target.value)} /></label><label>Email<input required type="email" value={value.email} onChange={(event) => field("email", event.target.value)} /></label><label>Bio<textarea rows={4} value={value.bio} onChange={(event) => field("bio", event.target.value)} /></label><div><button type="button" onClick={onCancel}>Cancel</button><button className="ui-button primary" disabled={pending}>Save</button></div></form>;
 }
 function UserDetails({ user, superAdmin, onEdit, onDelete, onRole }: { user: AdminUserDetails; superAdmin: boolean; onEdit: () => void; onDelete: () => void; onRole: (role: string, enabled: boolean) => void }) {
-  return <><div className="drawer-avatar">{user.firstName.slice(0, 1)}</div><h2>{user.firstName} {user.lastName}</h2><p>@{user.userName} · {user.email}</p><dl><div><dt>Projects</dt><dd>{user.projectCount}</dd></div><div><dt>Last seen</dt><dd>{new Date(user.lastSeen).toLocaleString()}</dd></div><div><dt>Status</dt><dd>{user.isSuspended ? "Suspended" : "Active"}</dd></div></dl>{superAdmin && <><section><h3>System roles</h3>{["SuperAdmin", "Admin", "User"].map((name) => <label key={name}>{name}<input type="checkbox" checked={user.roles.includes(name)} onChange={(event) => onRole(name, event.target.checked)} /></label>)}</section><div className="drawer-admin-actions"><button onClick={onEdit}>İstifadəçini dəyiş</button><button className="ui-button danger" onClick={onDelete}>İstifadəçini sil</button></div></>}</>;
+  return <><div className="drawer-avatar">{user.firstName.slice(0, 1)}</div><h2>{user.firstName} {user.lastName}</h2><p>@{user.userName} · {user.email}</p><dl><div><dt>Projects</dt><dd>{user.projectCount}</dd></div><div><dt>Last seen</dt><dd>{new Date(user.lastSeen).toLocaleString()}</dd></div><div><dt>Status</dt><dd>{user.isSuspended ? user.banExpiresAt ? `Suspended until ${new Date(user.banExpiresAt).toLocaleString()}` : "Suspended permanently" : "Active"}</dd></div></dl>{superAdmin && <><section><h3>System roles</h3>{["SuperAdmin", "Admin", "Moderator", "User"].map((name) => <label key={name}>{name}<input type="checkbox" checked={user.roles.includes(name)} onChange={(event) => onRole(name, event.target.checked)} /></label>)}</section><div className="drawer-admin-actions"><button onClick={onEdit}>İstifadəçini dəyiş</button><button className="ui-button danger" onClick={onDelete}>İstifadəçini sil</button></div></>}</>;
 }
 function UserRow({ user, locale, onSelect, onStatus }: { user: AdminUser; locale:string; onSelect: () => void; onStatus: () => void }) { const {pt}=usePageTranslation(); return <tr><td><button className="admin-user-link" onClick={onSelect}><b>{user.displayName}</b><small>@{user.userName} · {user.email}</small></button></td><td>{user.roles.map((role) => <span className="role-pill" key={role}>{role}</span>)}</td><td><span className={user.isSuspended ? "status suspended" : "status active"}>{user.isSuspended ? pt("suspended") : pt("active")}</span></td><td>{new Date(user.lastSeen).toLocaleDateString(locale)}</td><td><button onClick={onStatus}>{user.isSuspended ? pt("activate") : pt("suspend")}</button></td></tr>; }
 

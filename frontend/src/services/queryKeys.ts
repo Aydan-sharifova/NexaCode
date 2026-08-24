@@ -1,0 +1,31 @@
+export const queryKeys = {
+  dashboard: ["dashboard"] as const,
+  analytics: ["analytics"] as const,
+  admin: ["admin"] as const,
+  activities: ["admin", "activities"] as const,
+  teamDirectory: ["team-directory"] as const,
+  projects: ["projects"] as const,
+  discover: (filters: object) => ["discover", filters] as const,
+  saved: {
+    all: ["saved"] as const,
+    list: (type: string, search = "") => ["saved", "list", type, search] as const,
+    project: (projectId: string) => ["saved", "project", projectId] as const,
+  },
+  notifications: ["notifications"] as const,
+  socialFeed: ["social-feed"] as const,
+  blockedUsers: ["users", "blocked"] as const,
+  chat: {
+    conversations: ["chat-conversations"] as const,
+    messages: (conversationId?: string) => ["chat-messages", conversationId] as const,
+  },
+  fileTree: (projectId: string) => ["file-tree", projectId] as const,
+  database: (projectId: string) => ["database-schema", projectId] as const,
+  repository: {
+    all: (projectId: string) => ["repository", projectId] as const,
+    status: (projectId: string) => ["repository", projectId, "status"] as const,
+    history: (projectId: string) => ["repository", projectId, "history"] as const,
+    branches: (projectId: string) => ["repository", projectId, "branches"] as const,
+    diff: (projectId: string, staged: boolean) => ["repository", projectId, "diff", staged] as const,
+    commitDiff: (projectId: string, sha: string) => ["repository", projectId, "commit", sha, "diff"] as const,
+  },
+} as const;

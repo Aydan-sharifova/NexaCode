@@ -31,6 +31,7 @@ public sealed class AiToolExecutionService : IAiToolExecutionService
     private readonly TimeProvider _clock;
     private readonly TimeSpan _approvalLifetime;
     private readonly IServiceProvider _services;
+    private readonly IAiSecretRedactionService _redaction;
 
     public AiToolExecutionService(
         AppDbContext db,
@@ -40,6 +41,7 @@ public sealed class AiToolExecutionService : IAiToolExecutionService
         IActivityLogger activity,
         TimeProvider clock,
         IServiceProvider services,
+        IAiSecretRedactionService redaction,
         TimeSpan? approvalLifetime = null)
     {
         _db = db;
@@ -49,6 +51,7 @@ public sealed class AiToolExecutionService : IAiToolExecutionService
         _activity = activity;
         _clock = clock;
         _services = services;
+        _redaction = redaction;
         _approvalLifetime = approvalLifetime ?? TimeSpan.FromMinutes(15);
     }
 
@@ -127,15 +130,15 @@ public sealed class AiToolExecutionService : IAiToolExecutionService
         {
             var result = await tool.ExecuteAsync(request.Arguments, run, cancellationToken);
             var now = _clock.GetUtcNow().UtcDateTime;
-            call.ResultSummary = result.Summary;
-            call.ResultJson = result.Json;
+            call.ResultSummary = _redaction.Redact(result.Summary);
+            call.ResultJson = result.Json is null ? null : _redaction.Redact(result.Json);
             call.ExecutedAt = now;
             call.ApprovalStatus = AiApprovalStatus.NotRequired;
             call.IdempotencyKey = idempotencyKey;
             call.RiskLevel = risk;
             await _db.SaveChangesAsync(cancellationToken);
             await LogAsync(run, call.ToolName, risk, AiApprovalStatus.NotRequired, "executed", cancellationToken);
-            return AiToolDispatchResult.Executed(result.Summary, result.Json);
+            return AiToolDispatchResult.Executed(call.ResultSummary, call.ResultJson);
         }
         catch (UnknownAiToolException ex)
         {
@@ -143,10 +146,10 @@ public sealed class AiToolExecutionService : IAiToolExecutionService
         }
         catch (Exception ex)
         {
-            call.ErrorMessage = ex.Message;
+            call.ErrorMessage = _redaction.Redact(ex.Message);
             await _db.SaveChangesAsync(cancellationToken);
             await LogAsync(run, call.ToolName, risk, call.ApprovalStatus, "failed", cancellationToken);
-            return AiToolDispatchResult.Failed(ex.Message);
+            return AiToolDispatchResult.Failed(call.ErrorMessage);
         }
     }
 

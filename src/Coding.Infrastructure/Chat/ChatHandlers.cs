@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Coding.Application.Abstractions;
 using Coding.Application.Features.Chat;
 using Coding.Application.Features.Notifications;
+using Coding.Application.Features.Users;
 using Coding.Data;
 using Coding.Enums;
 using Coding.Exceptions;
@@ -80,7 +81,7 @@ internal static partial class ChatSupport
     }
 }
 
-public sealed class CreateDirectConversationHandler(AppDbContext db, ICurrentUser currentUser) : IRequestHandler<CreateDirectConversationCommand, ConversationItem>
+public sealed class CreateDirectConversationHandler(AppDbContext db, ICurrentUser currentUser, ISocialAccessService socialAccess) : IRequestHandler<CreateDirectConversationCommand, ConversationItem>
 {
     public async Task<ConversationItem> Handle(CreateDirectConversationCommand request, CancellationToken ct)
     {
@@ -92,6 +93,7 @@ public sealed class CreateDirectConversationHandler(AppDbContext db, ICurrentUse
             .SingleOrDefaultAsync(ct)
             ?? throw new NotFoundException("User not found.");
         if (otherUserId == currentUser.UserId) throw new ConflictException("You cannot create a direct conversation with yourself.");
+        await socialAccess.EnsureCanInteractAsync(currentUser.UserId, otherUserId, ct);
         var key = ChatSupport.DirectKey(currentUser.UserId, otherUserId);
         var existingId = await db.Conversations.Where(item => item.DirectKey == key).Select(item => (Guid?)item.ID).SingleOrDefaultAsync(ct);
         if (!existingId.HasValue)
@@ -113,6 +115,7 @@ public sealed class SendMessageHandler(
     ICurrentUser currentUser,
     INotificationService notifications,
     IChatRealtimePublisher realtime,
+    ISocialAccessService socialAccess,
     ILogger<SendMessageHandler> logger) : IRequestHandler<SendMessageCommand, ChatMessageItem>
 {
     public async Task<ChatMessageItem> Handle(SendMessageCommand request, CancellationToken ct)
@@ -120,6 +123,9 @@ public sealed class SendMessageHandler(
         var participant = await ChatSupport.RequireParticipant(db, request.ConversationId, currentUser.UserId, ct);
         var conversation = await db.Conversations.AsNoTracking().SingleAsync(item => item.ID == participant.ConversationId, ct);
         var participantIds = await db.ConversationParticipants.Where(item => item.ConversationId == request.ConversationId).Select(item => item.UserId).ToListAsync(ct);
+        if (conversation.Type == ConversationType.Direct)
+            foreach (var targetId in participantIds.Where(id => id != currentUser.UserId))
+                await socialAccess.EnsureCanInteractAsync(currentUser.UserId, targetId, ct);
         var sender = await db.Users.AsNoTracking().SingleAsync(item => item.ID == currentUser.UserId, ct);
         var mentionedNames = ChatSupport.Mentions(request.Content);
         var mentioned = mentionedNames.Count == 0
@@ -252,7 +258,7 @@ public sealed class DeleteConversationHandler(AppDbContext db, ICurrentUser curr
     }
 }
 
-public sealed class SendMessageWithAttachmentHandler(AppDbContext db, ICurrentUser currentUser, IChatRealtimePublisher realtime) : IRequestHandler<SendMessageWithAttachmentCommand, ChatMessageItem>
+public sealed class SendMessageWithAttachmentHandler(AppDbContext db, ICurrentUser currentUser, IChatRealtimePublisher realtime, ISocialAccessService socialAccess) : IRequestHandler<SendMessageWithAttachmentCommand, ChatMessageItem>
 {
     private const int MaxBytes = 10 * 1024 * 1024;
     private static readonly HashSet<string> BlockedExtensions = new(StringComparer.OrdinalIgnoreCase) { ".app", ".bat", ".cmd", ".com", ".dmg", ".exe", ".js", ".msi", ".pkg", ".ps1", ".scr", ".vbs" };
@@ -260,6 +266,10 @@ public sealed class SendMessageWithAttachmentHandler(AppDbContext db, ICurrentUs
     public async Task<ChatMessageItem> Handle(SendMessageWithAttachmentCommand request, CancellationToken ct)
     {
         await ChatSupport.RequireParticipant(db, request.ConversationId, currentUser.UserId, ct);
+        var directTargets = await db.ConversationParticipants.AsNoTracking()
+            .Where(item => item.ConversationId == request.ConversationId && item.UserId != currentUser.UserId && item.Conversation.Type == ConversationType.Direct)
+            .Select(item => item.UserId).ToListAsync(ct);
+        foreach (var targetId in directTargets) await socialAccess.EnsureCanInteractAsync(currentUser.UserId, targetId, ct);
         if (request.Bytes.Length is 0 or > MaxBytes) throw new ValidationException("Attachments must be between 1 byte and 10 MB.");
         var fileName = Path.GetFileName(request.FileName).Trim();
         if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 255 || BlockedExtensions.Contains(Path.GetExtension(fileName))) throw new ValidationException("This attachment name or file type is not allowed.");
@@ -327,7 +337,14 @@ public sealed class GetConversationMessagesHandler(AppDbContext db, ICurrentUser
 public sealed class GetUnreadConversationCountsHandler(AppDbContext db, ICurrentUser currentUser) : IRequestHandler<GetUnreadConversationCountsQuery, IReadOnlyList<UnreadConversationCount>>
 {
     public async Task<IReadOnlyList<UnreadConversationCount>> Handle(GetUnreadConversationCountsQuery request, CancellationToken ct) =>
-        await db.ConversationParticipants.Where(participant => participant.UserId == currentUser.UserId)
+        await db.ConversationParticipants
+            .Where(participant => participant.UserId == currentUser.UserId &&
+                (participant.Conversation.Type != ConversationType.Direct ||
+                 !participant.Conversation.Participants.Any(other =>
+                     other.UserId != currentUser.UserId &&
+                     db.UserBlocks.Any(block =>
+                         block.BlockerId == currentUser.UserId && block.BlockedId == other.UserId ||
+                         block.BlockerId == other.UserId && block.BlockedId == currentUser.UserId))))
             .Select(participant => new UnreadConversationCount(participant.ConversationId, participant.Conversation.ChatMessages.Count(message => message.SenderId != currentUser.UserId && !message.ReadReceipts.Any(receipt => receipt.UserId == currentUser.UserId)))).ToListAsync(ct);
 }
 
@@ -337,7 +354,13 @@ internal static class ConversationProjection
         AppDbContext db, Guid userId, CancellationToken ct)
     {
         var conversations = await db.ConversationParticipants.AsNoTracking()
-            .Where(participant => participant.UserId == userId)
+            .Where(participant => participant.UserId == userId &&
+                (participant.Conversation.Type != ConversationType.Direct ||
+                 !participant.Conversation.Participants.Any(other =>
+                     other.UserId != userId &&
+                     db.UserBlocks.Any(block =>
+                         block.BlockerId == userId && block.BlockedId == other.UserId ||
+                         block.BlockerId == other.UserId && block.BlockedId == userId))))
             .Select(participant => new
             {
                 participant.ConversationId,

@@ -2,6 +2,7 @@ using Coding.Application.Features.Chat;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Coding.Controllers;
 
@@ -24,14 +25,15 @@ public sealed class ChatController(ISender sender) : ControllerBase
     public Task<ChatMessageItem> Edit(Guid messageId, SendChatMessageRequest request, CancellationToken ct) => sender.Send(new EditOwnMessageCommand(messageId, request.Content), ct);
     [HttpDelete("conversations/{conversationId:guid}")]
     public async Task<IActionResult> DeleteConversation(Guid conversationId, CancellationToken ct) { await sender.Send(new DeleteConversationCommand(conversationId), ct); return NoContent(); }
-    [HttpPost("conversations/{conversationId:guid}/attachments"), RequestSizeLimit(10_485_760)]
-    public async Task<ChatMessageItem> Upload(Guid conversationId, [FromForm] IFormFile file, [FromForm] string? content, CancellationToken ct)
+    [HttpPost("conversations/{conversationId:guid}/attachments"), RequestSizeLimit(10_485_760), EnableRateLimiting("uploads")]
+    public async Task<ChatMessageItem> Upload(Guid conversationId, [FromForm] ChatUploadRequest request, CancellationToken ct)
     {
+        var file = request.File;
         if (file.Length == 0) throw new BadHttpRequestException("The attachment is empty.");
         await using var stream = file.OpenReadStream();
         using var memory = new MemoryStream();
         await stream.CopyToAsync(memory, ct);
-        return await sender.Send(new SendMessageWithAttachmentCommand(conversationId, content, file.FileName, file.ContentType, memory.ToArray()), ct);
+        return await sender.Send(new SendMessageWithAttachmentCommand(conversationId, request.Content, file.FileName, file.ContentType, memory.ToArray()), ct);
     }
     [HttpGet("attachments/{attachmentId:guid}")]
     public async Task<IActionResult> Attachment(Guid attachmentId, CancellationToken ct)
@@ -48,3 +50,8 @@ public sealed class ChatController(ISender sender) : ControllerBase
 public sealed record CreateDirectConversationRequest(string OtherUserId);
 public sealed record SendChatMessageRequest(string Content);
 public sealed record MarkConversationReadRequest(Guid? ThroughMessageId);
+public sealed class ChatUploadRequest
+{
+    public required IFormFile File { get; init; }
+    public string? Content { get; init; }
+}

@@ -55,7 +55,7 @@ public sealed class DevelopmentDataSeeder(
             Members =
             [
                 new ProjectMember { ID = Guid.NewGuid(), User = admin, UserId = admin.ID, Role = ProjectRole.Owner, JoinedAt = now, CreatAt = now },
-                new ProjectMember { ID = Guid.NewGuid(), User = demo, UserId = demo.ID, Role = ProjectRole.Member, JoinedAt = now, CreatAt = now }
+                new ProjectMember { ID = Guid.NewGuid(), User = demo, UserId = demo.ID, Role = ProjectRole.Developer, JoinedAt = now, CreatAt = now }
             ]
         };
 

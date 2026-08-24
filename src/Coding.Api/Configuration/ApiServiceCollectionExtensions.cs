@@ -8,12 +8,16 @@ using Coding.Application.Abstractions;
 using Coding.Application.Behaviors;
 using Coding.Application.Features.Projects;
 using Coding.Infrastructure.Projects;
+using Coding.Infrastructure.Caching;
 using FluentValidation;
 using MediatR;
 using System.Text.Json.Serialization;
 using Coding.Api.Collaboration;
 using Coding.Application.Features.Chat;
 using Coding.Application.Features.Notifications;
+using Coding.Application.Features.LiveRooms;
+using Coding.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.ResponseCompression;
 using System.IO.Compression;
 
@@ -47,6 +51,7 @@ public static class ApiServiceCollectionExtensions
         services.AddSingleton<ChatNotificationRealtimePublisher>();
         services.AddSingleton<IChatRealtimePublisher>(provider => provider.GetRequiredService<ChatNotificationRealtimePublisher>());
         services.AddSingleton<INotificationRealtimePublisher>(provider => provider.GetRequiredService<ChatNotificationRealtimePublisher>());
+        services.AddSingleton<ILiveRoomRealtimePublisher, LiveRoomRealtimePublisher>();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblies(
             typeof(CreateProjectCommand).Assembly,
@@ -56,6 +61,7 @@ public static class ApiServiceCollectionExtensions
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(RequestLoggingBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ActivityLoggingBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(CacheInvalidationBehavior<,>));
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AchievementEvaluationBehavior<,>));
 
         services.AddCors(options =>
         {
@@ -82,6 +88,8 @@ public static class ApiServiceCollectionExtensions
             options.KeepAliveInterval = TimeSpan.FromSeconds(15);
         });
         var signalRRedis = configuration.GetConnectionString("Redis");
+        if (!string.IsNullOrWhiteSpace(signalRRedis))
+            signalRRedis = RedisConnectionString.Normalize(signalRRedis);
         if (configuration.GetValue("SignalR:UseRedisBackplane", false) &&
             !string.IsNullOrWhiteSpace(signalRRedis))
             signalR.AddStackExchangeRedis(signalRRedis);
@@ -147,6 +155,32 @@ public static class ApiServiceCollectionExtensions
                         QueueLimit = 0,
                         AutoReplenishment = true
                     }));
+            options.AddPolicy("social", httpContext =>
+                RateLimitPartition.GetTokenBucketLimiter(
+                    httpContext.User.FindFirst("sub")?.Value
+                    ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                    ?? "anonymous",
+                    _ => new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = 60,
+                        TokensPerPeriod = 30,
+                        ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true
+                    }));
+            options.AddPolicy("uploads", httpContext =>
+                RateLimitPartition.GetTokenBucketLimiter(
+                    httpContext.User.FindFirst("sub")?.Value
+                    ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                    ?? "anonymous",
+                    _ => new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = 10,
+                        TokensPerPeriod = 5,
+                        ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true
+                    }));
             options.AddPolicy("realtime", httpContext =>
                 RateLimitPartition.GetConcurrencyLimiter(
                     httpContext.User.Identity?.Name
@@ -162,10 +196,11 @@ public static class ApiServiceCollectionExtensions
         var redisConnection = configuration.GetConnectionString("Redis");
         if (!string.IsNullOrWhiteSpace(redisConnection))
         {
+            redisConnection = RedisConnectionString.Normalize(redisConnection);
             services.AddStackExchangeRedisCache(options =>
                 options.Configuration = redisConnection);
             services.AddHealthChecks()
-                .AddCheck("redis", new RedisHealthCheck(redisConnection), tags: ["ready"]);
+                .AddCheck("redis", new RedisHealthCheck(redisConnection));
         }
 
         return services;
@@ -205,6 +240,42 @@ public static class ApiServiceCollectionExtensions
                 };
                 options.Events = new JwtBearerEvents
                 {
+                    OnTokenValidated = async context =>
+                    {
+                        var userIdValue = context.Principal?.FindFirst("sub")?.Value;
+                        var versionValue = context.Principal?.FindFirst("token_version")?.Value;
+                        if (!Guid.TryParse(userIdValue, out var userId) || !int.TryParse(versionValue, out var tokenVersion))
+                        {
+                            context.Fail("The access token is missing account security claims.");
+                            return;
+                        }
+
+                        var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                        var account = await db.Users.IgnoreQueryFilters()
+                            .SingleOrDefaultAsync(user => user.ID == userId, context.HttpContext.RequestAborted);
+                        if (account?.IsSuspended == true)
+                        {
+                            var now = DateTime.UtcNow;
+                            var ban = await db.UserBans
+                                .Where(item => item.UserId == userId && item.Status == Coding.Enums.UserBanStatus.Active)
+                                .OrderByDescending(item => item.StartAt)
+                                .FirstOrDefaultAsync(context.HttpContext.RequestAborted);
+                            if (ban is not null && !ban.IsPermanent && ban.ExpiresAt <= now)
+                            {
+                                ban.Status = Coding.Enums.UserBanStatus.Expired;
+                                ban.EndedAt = now;
+                                account.IsSuspended = false;
+                                account.Status = Coding.Enums.UserStatus.Active;
+                                account.SuspendedAt = null;
+                                account.SuspensionReason = null;
+                                account.TokenVersion++;
+                                account.UpdatedAt = now;
+                                await db.SaveChangesAsync(context.HttpContext.RequestAborted);
+                            }
+                        }
+                        if (account is null || account.IsDeleted || account.IsSuspended || account.TokenVersion != tokenVersion)
+                            context.Fail("The account is inactive or the access token has been revoked.");
+                    },
                     OnMessageReceived = context =>
                     {
                         var token = context.Request.Query["access_token"];
