@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { lazy, Suspense, type ComponentType } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthLayout } from "./layouts/AuthLayout";
 import { useAuth } from "./hooks/useAuth";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
@@ -97,7 +98,8 @@ function HomeRedirect() {
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <Routes>
       <Route path="/" element={<HomeRedirect />} />
       <Route
         path="/ai"
@@ -176,5 +178,7 @@ export default function App() {
       <Route path="/500" element={<Suspense fallback={<PageSkeleton />}><ErrorPage code={500} /></Suspense>} />
       <Route path="*" element={<Suspense fallback={<PageSkeleton />}><ErrorPage code={404} /></Suspense>} />
     </Routes>
+      <Analytics />
+    </>
   );
 }
