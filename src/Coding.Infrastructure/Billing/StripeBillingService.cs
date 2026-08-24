@@ -32,6 +32,7 @@ public sealed class StripeBillingService(AppDbContext db, IOptions<StripeBilling
         var request = new SessionCreateOptions
         {
             Mode = "subscription",
+            PaymentMethodTypes = ["card"],
             SuccessUrl = $"{settings.ClientBaseUrl.TrimEnd('/')}/billing?checkout=success",
             CancelUrl = $"{settings.ClientBaseUrl.TrimEnd('/')}/billing?checkout=cancelled",
             ClientReferenceId = user.ID.ToString(),
