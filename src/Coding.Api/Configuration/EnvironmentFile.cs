@@ -47,6 +47,9 @@ internal static class EnvironmentFile
         MapAlias("SMTP_FROM_EMAIL", "Smtp__FromEmail");
         MapAlias("SMTP_FROM_NAME", "Smtp__FromName");
         MapAlias("FRONTEND_ORIGIN", "Smtp__ClientBaseUrl");
+        MapAlias("RESEND_API_KEY", "Resend__ApiKey");
+        MapAlias("RESEND_FROM_EMAIL", "Resend__FromEmail");
+        MapAlias("FRONTEND_ORIGIN", "Resend__ClientBaseUrl");
         MapAlias("AI_PROVIDER", "AI__Provider");
         MapAlias("OPENAI_COMPATIBLE_BASE_URL", "OpenAICompatible__BaseUrl");
         MapAlias("OPENAI_COMPATIBLE_MODEL", "OpenAICompatible__Model");

@@ -93,12 +93,32 @@ public static class DependencyInjection
         services.AddOptions<SmtpSettings>()
             .Bind(configuration.GetSection(SmtpSettings.SectionName))
             .ValidateOnStart();
+        services.AddOptions<ResendSettings>()
+            .Bind(configuration.GetSection(ResendSettings.SectionName))
+            .Validate(
+                options => string.IsNullOrWhiteSpace(options.ApiKey) ||
+                    (!string.IsNullOrWhiteSpace(options.FromEmail) &&
+                     Uri.TryCreate(options.ClientBaseUrl, UriKind.Absolute, out _)),
+                "Configured Resend requires a from email and an absolute client base URL.")
+            .ValidateOnStart();
         services.AddScoped<LoggingEmailSender>();
         services.AddScoped<SmtpEmailSender>();
+        services.AddHttpClient<ResendEmailSender>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.resend.com/");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
         services.AddScoped<IEmailSender>(provider =>
-            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SmtpSettings>>().Value.Enabled
+        {
+            if (!string.IsNullOrWhiteSpace(provider
+                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<ResendSettings>>()
+                    .Value.ApiKey))
+                return provider.GetRequiredService<ResendEmailSender>();
+
+            return provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SmtpSettings>>().Value.Enabled
                 ? provider.GetRequiredService<SmtpEmailSender>()
-                : provider.GetRequiredService<LoggingEmailSender>());
+                : provider.GetRequiredService<LoggingEmailSender>();
+        });
         services.AddScoped<IdentityPasswordService>();
         services.AddScoped<DevelopmentDataSeeder>();
         services.AddOptions<DemoModeOptions>()

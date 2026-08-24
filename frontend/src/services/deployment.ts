@@ -1,8 +1,8 @@
-const isNexaProduction = typeof window !== "undefined"
-  && (window.location.hostname === "nexacoding.website" || window.location.hostname === "www.nexacoding.website");
+const productionApiUrl = "https://nexacode-g8dj.onrender.com/api";
+const productionHubUrl = "https://nexacode-g8dj.onrender.com/hubs/collaboration";
 
 export const API_URL = import.meta.env.VITE_API_URL
-  ?? (isNexaProduction ? "https://nexacode-g8dj.onrender.com/api" : "/api");
+  ?? (import.meta.env.PROD ? productionApiUrl : "/api");
 
 export const COLLABORATION_HUB_URL = import.meta.env.VITE_SIGNALR_URL
-  ?? (isNexaProduction ? "https://nexacode-g8dj.onrender.com/hubs/collaboration" : "/hubs/collaboration");
+  ?? (import.meta.env.PROD ? productionHubUrl : "/hubs/collaboration");
