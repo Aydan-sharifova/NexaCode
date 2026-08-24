@@ -49,8 +49,10 @@ public sealed class ProjectDeploymentService(AppDbContext db, ICurrentUser curre
             return string.Join('/', parts);
         }
         var files = nodes.Where(x => x.NodeType == WorkspaceNodeType.File && x.FileContent is { IsBinary: false }).Select(x => new { Path = PathOf(x), Content = x.FileContent!.Content }).Where(x => AllowedExtensions.Contains(System.IO.Path.GetExtension(x.Path))).OrderBy(x => x.Path, StringComparer.Ordinal).ToList();
-        if (!files.Any(x => x.Path.Equals("index.html", StringComparison.OrdinalIgnoreCase))) throw new InvalidOperationException("A root index.html file is required for static deployment.");
-        if (files.Count > MaximumFiles || files.Sum(x => x.Content.Length) > MaximumCharacters) throw new InvalidOperationException("Static deployment exceeds the 250 file or 2,000,000 character limit.");
+        if (!files.Any(x => x.Path.Equals("index.html", StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException("Create and save an index.html file in the project root before deploying.");
+        if (files.Count > MaximumFiles || files.Sum(x => x.Content.Length) > MaximumCharacters)
+            throw new ArgumentException("Static deployment exceeds the 250 file or 2,000,000 character limit.");
         var sourceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", files.Select(x => $"{x.Path}\0{x.Content}"))))).ToLowerInvariant();
         await db.ProjectDeployments.Where(x => x.ProjectId == projectId && x.IsActive).ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false).SetProperty(x => x.UpdateAt, DateTime.UtcNow), ct);
         var version = (await db.ProjectDeployments.Where(x => x.ProjectId == projectId).MaxAsync(x => (int?)x.Version, ct) ?? 0) + 1;
