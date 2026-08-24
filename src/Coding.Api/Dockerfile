@@ -13,7 +13,7 @@ RUN dotnet publish "src/Coding.Api/Coding.Api.csproj" \
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
 WORKDIR /app
-RUN apk add --no-cache icu-libs \
+RUN apk add --no-cache git icu-libs \
     && mkdir -p /app/wwwroot/uploads/avatars \
     && chown -R app:app /app
 COPY --from=build --chown=app:app /out .
