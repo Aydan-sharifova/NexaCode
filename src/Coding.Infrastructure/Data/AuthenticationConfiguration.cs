@@ -17,6 +17,12 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(item => item.PasswordHash).HasMaxLength(100);
         builder.Property(item => item.SuspensionReason).HasMaxLength(500);
         builder.Property(item => item.Status).HasConversion<string>().HasMaxLength(20).HasDefaultValue(Coding.Enums.UserStatus.Active);
+        builder.Property(item => item.SubscriptionPlan).HasMaxLength(20).HasDefaultValue("Free");
+        builder.Property(item => item.SubscriptionStatus).HasMaxLength(30).HasDefaultValue("inactive");
+        builder.Property(item => item.StripeCustomerId).HasMaxLength(100);
+        builder.Property(item => item.StripeSubscriptionId).HasMaxLength(100);
+        builder.HasIndex(item => item.StripeCustomerId).IsUnique();
+        builder.HasIndex(item => item.StripeSubscriptionId).IsUnique();
     }
 }
 

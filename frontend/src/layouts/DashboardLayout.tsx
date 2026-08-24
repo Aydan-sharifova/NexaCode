@@ -99,7 +99,7 @@ export function DashboardLayout() {
           <NavLink to="/settings/blocked"><Icon name="team" />Blocked users</NavLink>
           <NavLink to="/help"><Icon name="help" />{t("help")}</NavLink>
         </nav>
-        <div className="sidebar-upgrade"><span><Icon name="trend" /></span><strong>{pt("unlockInsights")}</strong><p>{pt("upgradeWorkspace")}</p><button>{pt("viewPlans")}</button></div>
+        <div className="sidebar-upgrade"><span><Icon name="trend" /></span><strong>{pt("unlockInsights")}</strong><p>{pt("upgradeWorkspace")}</p><button onClick={() => navigate("/billing")}>{pt("viewPlans")}</button></div>
         <div className="sidebar-account" ref={accountMenuRef}>
           {accountMenuOpen && (
             <div className="account-menu" role="menu" aria-label={pt("accountMenu")}>

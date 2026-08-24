@@ -73,6 +73,7 @@ const AutonomousTestingPage = lazyRoute(() => import("./pages/AutonomousTestingP
 const ScreenshotToCodePage = lazyRoute(() => import("./pages/ScreenshotToCodePage").then((module) => ({ default: module.ScreenshotToCodePage })));
 const AiUiGeneratorPage = lazyRoute(() => import("./pages/AiUiGeneratorPage").then((module) => ({ default: module.AiUiGeneratorPage })));
 const ModerationPage = lazyRoute(() => import("./pages/ModerationPage").then((module) => ({ default: module.ModerationPage })));
+const BillingPage = lazyRoute(() => import("./pages/BillingPage").then((module) => ({ default: module.BillingPage })));
 
 function ProtectedDashboard() {
   const { session, isInitializing } = useAuth();
@@ -164,6 +165,7 @@ export default function App() {
         <Route path="/notifications" element={<Suspense fallback={<div className="route-loader" role="status">Loading notifications…</div>}><NotificationCenterPage /></Suspense>} />
         <Route path="/settings" element={<Suspense fallback={<div className="route-loader" role="status">Loading settings…</div>}><SettingsPage /></Suspense>} />
         <Route path="/settings/blocked" element={<Suspense fallback={<PageSkeleton />}><BlockedUsersPage /></Suspense>} />
+        <Route path="/billing" element={<Suspense fallback={<PageSkeleton />}><BillingPage /></Suspense>} />
         <Route path="/help" element={<Suspense fallback={<div className="route-loader" role="status">Loading help center…</div>}><HelpCenterPage /></Suspense>} />
         <Route path="/team" element={<Suspense fallback={<div className="route-loader" role="status">Loading team…</div>}><TeamPage /></Suspense>} />
         <Route path="/users/:publicId" element={<Suspense fallback={<div className="route-loader" role="status">Loading public profile…</div>}><PublicUserProfilePage /></Suspense>} />

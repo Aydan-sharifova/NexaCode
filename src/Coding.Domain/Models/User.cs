@@ -35,6 +35,10 @@ namespace Coding.Models
         public string? SuspensionReason { get; set; }
         public UserStatus Status { get; set; } = UserStatus.Active;
         public int TokenVersion { get; set; }
+        public string SubscriptionPlan { get; set; } = "Free";
+        public string SubscriptionStatus { get; set; } = "inactive";
+        public string? StripeCustomerId { get; set; }
+        public string? StripeSubscriptionId { get; set; }
         public ICollection<UserBan> Bans { get; set; } = [];
 
         public DeveloperProfile? DeveloperProfile { get; set; }

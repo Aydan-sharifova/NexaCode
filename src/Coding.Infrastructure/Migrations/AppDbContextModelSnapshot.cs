@@ -4643,6 +4643,28 @@ namespace Coding.Infrastructure.Migrations
                         .HasColumnType("character varying(20)")
                         .HasDefaultValue("Active");
 
+                    b.Property<string>("StripeCustomerId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("StripeSubscriptionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SubscriptionPlan")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Free");
+
+                    b.Property<string>("SubscriptionStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("inactive");
+
                     b.Property<DateTime?>("SuspendedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4670,6 +4692,12 @@ namespace Coding.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("StripeCustomerId")
+                        .IsUnique();
+
+                    b.HasIndex("StripeSubscriptionId")
                         .IsUnique();
 
                     b.HasIndex("UserName")

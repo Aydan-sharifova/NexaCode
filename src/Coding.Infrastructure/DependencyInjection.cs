@@ -47,6 +47,7 @@ using Coding.Application.Features.ScreenshotToCode;
 using Coding.Infrastructure.ScreenshotToCode;
 using Coding.Application.Features.AiUiGenerator;
 using Coding.Infrastructure.AiUiGenerator;
+using Coding.Infrastructure.Billing;
 
 namespace Coding.Infrastructure;
 
@@ -73,6 +74,9 @@ public static class DependencyInjection
 
         services.AddHealthChecks()
             .AddDbContextCheck<AppDbContext>("postgresql", tags: ["ready"]);
+        services.AddOptions<StripeBillingSettings>()
+            .Bind(configuration.GetSection(StripeBillingSettings.SectionName));
+        services.AddScoped<StripeBillingService>();
 
         services.AddScoped<ICollaborativeDocumentStore, CollaborativeDocumentStore>();
         services.AddSingleton<CollaborativeContentMaterializer>();

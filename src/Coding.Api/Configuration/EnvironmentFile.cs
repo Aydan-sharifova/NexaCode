@@ -50,6 +50,10 @@ internal static class EnvironmentFile
         MapAlias("RESEND_API_KEY", "Resend__ApiKey");
         MapAlias("RESEND_FROM_EMAIL", "Resend__FromEmail");
         MapAlias("FRONTEND_ORIGIN", "Resend__ClientBaseUrl");
+        MapAlias("STRIPE_SECRET_KEY", "Stripe__SecretKey");
+        MapAlias("STRIPE_WEBHOOK_SECRET", "Stripe__WebhookSecret");
+        MapAlias("STRIPE_PLUS_PRICE_ID", "Stripe__PlusPriceId");
+        MapAlias("FRONTEND_ORIGIN", "Stripe__ClientBaseUrl");
         MapAlias("AI_PROVIDER", "AI__Provider");
         MapAlias("OPENAI_COMPATIBLE_BASE_URL", "OpenAICompatible__BaseUrl");
         MapAlias("OPENAI_COMPATIBLE_MODEL", "OpenAICompatible__Model");
