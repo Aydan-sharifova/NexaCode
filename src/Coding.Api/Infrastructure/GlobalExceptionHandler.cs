@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Stripe;
 
 namespace Coding.Api.Infrastructure;
 
@@ -36,6 +37,7 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
             ConflictException => StatusCodes.Status409Conflict,
             DbUpdateConcurrencyException => StatusCodes.Status409Conflict,
             ServiceUnavailableException => StatusCodes.Status503ServiceUnavailable,
+            StripeException => StatusCodes.Status502BadGateway,
             _ => StatusCodes.Status500InternalServerError
         };
 
@@ -54,7 +56,9 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
                 Status = statusCode,
                 Title = statusCode == StatusCodes.Status500InternalServerError
                     ? "An unexpected error occurred."
-                    : exception.Message
+                    : exception is StripeException
+                        ? $"Stripe checkout failed: {exception.Message}"
+                        : exception.Message
             }
         });
     }

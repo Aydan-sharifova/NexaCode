@@ -1,4 +1,5 @@
 using Coding.Data;
+using Coding.Exceptions;
 using Coding.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -114,8 +115,16 @@ public sealed class StripeBillingService(AppDbContext db, IOptions<StripeBilling
 
     private void EnsureConfigured()
     {
-        if (string.IsNullOrWhiteSpace(settings.SecretKey) || string.IsNullOrWhiteSpace(settings.PlusPriceId) || string.IsNullOrWhiteSpace(settings.WebhookSecret))
-            throw new InvalidOperationException("Stripe billing is not configured.");
+        var missing = new List<string>();
+        if (string.IsNullOrWhiteSpace(settings.SecretKey)) missing.Add("STRIPE_SECRET_KEY");
+        if (string.IsNullOrWhiteSpace(settings.PlusPriceId)) missing.Add("STRIPE_PLUS_PRICE_ID");
+        if (string.IsNullOrWhiteSpace(settings.WebhookSecret)) missing.Add("STRIPE_WEBHOOK_SECRET");
+        if (missing.Count > 0)
+            throw new ServiceUnavailableException($"Stripe billing configuration is missing: {string.Join(", ", missing)}.");
+        if (!settings.PlusPriceId.StartsWith("price_", StringComparison.Ordinal))
+            throw new ServiceUnavailableException("STRIPE_PLUS_PRICE_ID must be a Stripe Price ID beginning with 'price_'.");
+        if (!settings.WebhookSecret.StartsWith("whsec_", StringComparison.Ordinal))
+            throw new ServiceUnavailableException("STRIPE_WEBHOOK_SECRET must begin with 'whsec_'.");
     }
 
     private static BillingStatusDto ToStatus(User user) => new(
