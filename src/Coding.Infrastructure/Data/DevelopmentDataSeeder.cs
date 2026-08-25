@@ -28,7 +28,7 @@ public sealed class DevelopmentDataSeeder(
                 "Development seeding requires DevelopmentSeed__AdminPassword and DevelopmentSeed__DemoPassword.");
 
         var now = DateTime.UtcNow;
-        var adminEmail = configuration["DevelopmentSeed:AdminEmail"] ?? "admin@coding.local";
+        var adminEmail = configuration["DevelopmentSeed:AdminEmail"] ?? "sharifovaydan700@gmail.com";
         var demoEmail = configuration["DevelopmentSeed:DemoEmail"] ?? "demo@coding.local";
         var admin = await EnsureUserAsync(
             adminEmail, "admin", "Development", "Admin", adminPassword,

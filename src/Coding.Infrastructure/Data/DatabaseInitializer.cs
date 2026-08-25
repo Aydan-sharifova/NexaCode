@@ -79,13 +79,13 @@ public static class DatabaseInitializer
         var firstName = configuration["AdminBootstrap:FirstName"]?.Trim() ?? "Platform";
         var lastName = configuration["AdminBootstrap:LastName"]?.Trim() ?? "Administrator";
 
-        if (password.Length < 16 ||
+        if (password.Length < 8 ||
             !password.Any(char.IsUpper) ||
             !password.Any(char.IsLower) ||
             !password.Any(char.IsDigit) ||
             password.All(char.IsLetterOrDigit))
             throw new InvalidOperationException(
-                "AdminBootstrap__Password must contain at least 16 characters, uppercase, lowercase, number, and special character.");
+                "AdminBootstrap__Password must contain at least 8 characters, uppercase, lowercase, number, and special character.");
 
         var requiredRoles = await context.Roles
             .Where(role => role.Name == SystemRoles.SuperAdmin ||
