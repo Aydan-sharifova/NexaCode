@@ -80,6 +80,8 @@ public sealed record GetPublicUserProjectsQuery(string PublicId, int Page = 1, i
 public sealed record GetPublicProjectDetailsQuery(Guid ProjectId) : IRequest<PublicProjectDetailsDto>;
 public sealed record GetPublicProjectTreeQuery(Guid ProjectId) : IRequest<IReadOnlyList<PublicProjectNodeDto>>;
 public sealed record GetPublicProjectFileQuery(Guid ProjectId, Guid NodeId) : IRequest<PublicProjectFileDto>;
+public sealed record ForkPublicProjectResult(Guid ProjectId, Guid SourceProjectId);
+public sealed record ForkPublicProjectCommand(Guid ProjectId) : IRequest<ForkPublicProjectResult>;
 
 public sealed class UpdateDeveloperProfileValidator : AbstractValidator<UpdateDeveloperProfileCommand>
 {

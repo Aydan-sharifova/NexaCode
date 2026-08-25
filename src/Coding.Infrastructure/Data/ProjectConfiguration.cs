@@ -21,10 +21,13 @@ public sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.ToTable(table => table.HasCheckConstraint("CK_Projects_RequiredPullRequestApprovals", "\"RequiredPullRequestApprovals\" BETWEEN 1 AND 5"));
         builder.HasIndex(project => project.OwnerId);
         builder.HasIndex(project => new { project.Status, project.DeadlineAt });
+        builder.HasIndex(project => project.ForkedFromProjectId);
         builder.HasOne(project => project.Owner)
             .WithMany(user => user.OwnedProjects)
             .HasForeignKey(project => project.OwnerId)
             .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(project => project.ForkedFromProject).WithMany(project => project.Forks)
+            .HasForeignKey(project => project.ForkedFromProjectId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

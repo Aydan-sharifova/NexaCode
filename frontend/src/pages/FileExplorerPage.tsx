@@ -346,6 +346,7 @@ export function FileExplorerPage() {
     useState<string>();
   const [voiceAiRequest, setVoiceAiRequest] = useState<{ id: string; action: AiAction; message: string }>();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -621,7 +622,63 @@ export function FileExplorerPage() {
     } finally {
       setUploading([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (folderInputRef.current) folderInputRef.current.value = "";
       if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  };
+
+  const uploadFolder = async (selected: FileList | File[]) => {
+    const files = Array.from(selected);
+    if (!files.length) return;
+
+    setUploading(files.map((file) => file.webkitRelativePath || file.name));
+
+    try {
+      const foldersByParentAndName = new Map<string, WorkspaceNode>();
+      for (const node of explorer.entities.values()) {
+        if (node.nodeType !== "Folder") continue;
+        foldersByParentAndName.set(
+          `${node.parentId ?? "root"}\0${node.name.toLocaleLowerCase()}`,
+          node
+        );
+      }
+
+      const filesByParent = new Map<string | undefined, File[]>();
+
+      for (const file of files) {
+        const relativeParts = (file.webkitRelativePath || file.name)
+          .split("/")
+          .filter(Boolean);
+        const folderParts = relativeParts.slice(0, -1);
+        let parentId = createParentId;
+
+        for (const folderName of folderParts) {
+          const key = `${parentId ?? "root"}\0${folderName.toLocaleLowerCase()}`;
+          let folder = foldersByParentAndName.get(key);
+          if (!folder) {
+            folder = await fileExplorerApi.createFolder(projectId, parentId, folderName);
+            foldersByParentAndName.set(key, folder);
+          }
+          parentId = folder.id;
+        }
+
+        filesByParent.set(parentId, [...(filesByParent.get(parentId) ?? []), file]);
+      }
+
+      for (const [parentId, parentFiles] of filesByParent) {
+        for (let index = 0; index < parentFiles.length; index += 20) {
+          await fileExplorerApi.upload(projectId, parentId, parentFiles.slice(index, index + 20));
+        }
+      }
+
+      await reloadTree();
+      await refreshRepository();
+      show(`Folder uploaded with ${files.length} file${files.length === 1 ? "" : "s"}.`);
+    } catch (error) {
+      show(error instanceof Error ? error.message : "Folder upload failed.", "error");
+    } finally {
+      setUploading([]);
+      if (folderInputRef.current) folderInputRef.current.value = "";
     }
   };
 
@@ -926,6 +983,10 @@ export function FileExplorerPage() {
             ↑ File
           </button>
 
+          <button disabled={readOnly} aria-label="Upload folder" title="Upload folder" onClick={() => folderInputRef.current?.click()}>
+            ↑ Folder
+          </button>
+
           <button disabled={readOnly} aria-label="Upload image" title="Upload image" onClick={() => imageInputRef.current?.click()}>
             ▧ Image
           </button>
@@ -994,12 +1055,23 @@ export function FileExplorerPage() {
               <button disabled={readOnly} aria-label="New file" title="New file" onClick={() => actions.onCreate("file", createParentId)}>＋</button>
               <button disabled={readOnly} aria-label="New folder" title="New folder" onClick={() => actions.onCreate("folder", createParentId)}>▱</button>
               <button disabled={readOnly} aria-label="Upload files" title="Upload files" onClick={() => fileInputRef.current?.click()}>↑</button>
+              <button disabled={readOnly} aria-label="Upload folder" title="Upload folder" onClick={() => folderInputRef.current?.click()}>⇧</button>
               <button disabled={readOnly} aria-label="Upload image" title="Upload image" onClick={() => imageInputRef.current?.click()}>▧</button>
               <button aria-label="Refresh explorer" title="Refresh explorer" onClick={() => reloadTree()}>↻</button>
             </div>
           </header>
 
           <input ref={fileInputRef} className="workspace-file-input" type="file" multiple onChange={(event) => event.target.files && void uploadFiles(event.target.files)} />
+          <input
+            ref={(element) => {
+              folderInputRef.current = element;
+              element?.setAttribute("webkitdirectory", "");
+            }}
+            className="workspace-file-input"
+            type="file"
+            multiple
+            onChange={(event) => event.target.files && void uploadFolder(event.target.files)}
+          />
           <input ref={imageInputRef} className="workspace-file-input" type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => event.target.files && void uploadFiles(event.target.files)} />
           {leftMode === "explorer" && <div className="upload-destination">Upload to: {selectedNode?.nodeType === "Folder" ? selectedNode.path : "/"}</div>}
           {uploading.length > 0 && <div className="upload-progress" role="status"><strong>Uploading…</strong>{uploading.map((name) => <span key={name}>{name}</span>)}</div>}

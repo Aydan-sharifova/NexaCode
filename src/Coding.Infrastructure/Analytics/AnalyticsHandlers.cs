@@ -109,9 +109,10 @@ public sealed class GetAnalyticsDashboardHandler(
             Views=db.ProjectViews.Count(v=>v.ProjectId==x.ID&&v.ViewedAt>=from&&v.ViewedAt<=to),
             Likes=db.SocialPostReactions.Count(r=>r.Post.ProjectId==x.ID&&r.CreatedAt>=from&&r.CreatedAt<=to),
             Saves=db.SavedProjects.Count(s=>s.ProjectId==x.ID&&s.CreatedAt>=from&&s.CreatedAt<=to),Contributors=x.Members.Count,
+            Forks=db.Projects.Count(f=>f.ForkedFromProjectId==x.ID&&f.CreatedAt>=from&&f.CreatedAt<=to),
             Deployments=db.ActivityLogs.Count(a=>a.ProjectId==x.ID&&a.ActionType=="DeploymentSucceeded"&&a.CreatedAt>=from&&a.CreatedAt<=to),
             Activity=db.ActivityLogs.Count(a=>a.ProjectId==x.ID&&a.CreatedAt>=from&&a.CreatedAt<=to)}).OrderByDescending(x=>x.Activity).Take(100).ToListAsync(ct);
-        var projectAnalytics=projectRows.Select(x=>new ProjectAnalyticsDto(x.ID,x.Name,x.IsPublic,x.Views,0,false,x.Likes,x.Saves,x.Contributors,x.Deployments,x.Activity)).ToList();
+        var projectAnalytics=projectRows.Select(x=>new ProjectAnalyticsDto(x.ID,x.Name,x.IsPublic,x.Views,x.Forks,true,x.Likes,x.Saves,x.Contributors,x.Deployments,x.Activity)).ToList();
         return new AnalyticsDashboardDto(from, to,
             new AnalyticsSummaryDto(
                 activeUsers.Count,

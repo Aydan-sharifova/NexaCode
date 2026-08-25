@@ -36,6 +36,10 @@ namespace Coding.Models
 
         public bool RequirePassingPullRequestTests { get; set; }
 
+        public Guid? ForkedFromProjectId { get; set; }
+        public Project? ForkedFromProject { get; set; }
+        public ICollection<Project> Forks { get; set; } = [];
+
         public ICollection<ProjectMember> Members { get; set; } = [];
 
         public ICollection<ProjectInvitation> Invitations { get; set; } = [];

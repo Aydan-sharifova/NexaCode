@@ -2,6 +2,7 @@ using Coding.Application.Features.Users;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Coding.Controllers;
 
@@ -19,4 +20,8 @@ public sealed class PublicProjectsController(ISender sender) : ControllerBase
     [HttpGet("{projectId:guid}/files/{nodeId:guid}")]
     public Task<PublicProjectFileDto> File(Guid projectId, Guid nodeId, CancellationToken ct) =>
         sender.Send(new GetPublicProjectFileQuery(projectId, nodeId), ct);
+
+    [HttpPost("{projectId:guid}/fork"), EnableRateLimiting("social")]
+    public Task<ForkPublicProjectResult> Fork(Guid projectId, CancellationToken ct) =>
+        sender.Send(new ForkPublicProjectCommand(projectId), ct);
 }
