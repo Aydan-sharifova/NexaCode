@@ -72,6 +72,7 @@ try
 
     var app = builder.Build();
     var migrationOnly = args.Contains("--migrate", StringComparer.OrdinalIgnoreCase);
+    var bootstrapAdminOnly = args.Contains("--bootstrap-admin", StringComparer.OrdinalIgnoreCase);
     var demoSeedOnly = args.Contains("--demo-seed", StringComparer.OrdinalIgnoreCase);
     var demoResetOnly = args.Contains("--demo-reset", StringComparer.OrdinalIgnoreCase);
     var demoModeEnabled = builder.Configuration.GetValue("DemoMode:Enabled", false);
@@ -81,6 +82,7 @@ try
             "DemoMode may be enabled only when ASPNETCORE_ENVIRONMENT is Demo.");
 
     if (migrationOnly ||
+        bootstrapAdminOnly ||
         demoSeedOnly ||
         demoResetOnly ||
         builder.Configuration.GetValue("Database:ApplyMigrations", false))
@@ -89,6 +91,13 @@ try
             seedDevelopmentData: app.Environment.IsDevelopment() &&
                 builder.Configuration.GetValue("Database:SeedDevelopmentData", false),
             seedDemoData: demoModeEnabled && !demoResetOnly);
+    }
+
+    if (bootstrapAdminOnly)
+    {
+        await app.Services.BootstrapProductionAdminAsync();
+        Log.Information("Production administrator bootstrap completed successfully.");
+        return;
     }
 
     if (demoResetOnly)

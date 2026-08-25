@@ -353,6 +353,22 @@ and `FRONTEND_ORIGIN=https://www.nexacoding.website`. Guest AI additionally requ
 `AI_PROVIDER=Ollama`, `OPENAI_COMPATIBLE_BASE_URL`, and `OPENAI_COMPATIBLE_MODEL`. Run the migration-only
 command after every deployment containing migrations: `dotnet Coding.Api.dll --migrate`.
 
+Create or recover the production SuperAdmin account with the explicit one-shot command
+below. The command applies pending migrations first, verifies the email, grants
+`SuperAdmin`, `Admin`, and `User`, resets existing sessions, and never prints the password:
+
+```bash
+AdminBootstrap__Email=admin@example.com \
+AdminBootstrap__UserName=platform-admin \
+AdminBootstrap__FirstName=Platform \
+AdminBootstrap__LastName=Administrator \
+AdminBootstrap__Password='use-a-unique-password-manager-secret' \
+dotnet Coding.Api.dll --bootstrap-admin
+```
+
+Keep these values in the hosting provider's secret environment storage and remove
+`AdminBootstrap__Password` after the one-shot command succeeds.
+
 The production runbook is [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). See the
 [deployment audit](docs/DEPLOYMENT_AUDIT.md), [domain/TLS guide](docs/DOMAIN_AND_SSL.md),
 [frontend](docs/FRONTEND_DEPLOYMENT.md), [showcase](docs/SHOWCASE_DEPLOYMENT.md),
