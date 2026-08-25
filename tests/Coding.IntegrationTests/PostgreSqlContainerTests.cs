@@ -135,6 +135,40 @@ public sealed class PostgreSqlContainerTests : IAsyncLifetime
         audit.Items.Should().HaveCount(2).And.OnlyContain(x => x.ActionType == "DeploymentSucceeded");
     }
 
+    [DockerFact]
+    public async Task Public_project_fork_clones_hierarchy_content_and_provenance_as_private()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(postgres.GetConnectionString()).Options;
+        await using var db = new AppDbContext(options);
+        await db.Database.MigrateAsync();
+        var now = DateTime.UtcNow;
+        var owner = NewUser("fork_source", now);
+        var developer = NewUser("fork_developer", now);
+        var source = new Project { ID = Guid.NewGuid(), Name = new string('x', 120), Owner = owner, OwnerId = owner.ID, DefaultLanguage = "HTML", DatabaseProvider = "PostgreSQL", DatabaseSchemaJson = "{}", IsPublic = true, CreatedAt = now, CreatAt = now };
+        var folder = new WorkspaceNode { ID = Guid.NewGuid(), Project = source, ProjectId = source.ID, Name = "src", NodeType = WorkspaceNodeType.Folder, CreatAt = now };
+        var file = new WorkspaceNode { ID = Guid.NewGuid(), Project = source, ProjectId = source.ID, Parent = folder, ParentId = folder.ID, Name = "index.html", NodeType = WorkspaceNodeType.File, CreatAt = now };
+        file.FileContent = new FileContent { Node = file, NodeId = file.ID, Content = "<h1>Fork me</h1>", ContentHash = "hash", ConcurrencyToken = Guid.NewGuid().ToString("N"), VersionNumber = 7, UpdatedAt = now, UpdatedBy = owner, UpdatedById = owner.ID };
+        db.AddRange(owner, developer, source, folder, file);
+        await db.SaveChangesAsync();
+        var audit = new CapturingActivityLogger();
+
+        var result = await new ForkPublicProjectHandler(db, new TestCurrentUser(developer.ID, developer.Email), audit)
+            .Handle(new(source.ID), default);
+        db.ChangeTracker.Clear();
+
+        var fork = await db.Projects.Include(x => x.Members).SingleAsync(x => x.ID == result.ProjectId);
+        fork.IsPublic.Should().BeFalse();
+        fork.ForkedFromProjectId.Should().Be(source.ID);
+        fork.Name.Should().HaveLength(120).And.EndWith(" Fork");
+        fork.Members.Should().ContainSingle(x => x.UserId == developer.ID && x.Role == ProjectRole.Owner);
+        var clonedFile = await db.WorkspaceNodes.Include(x => x.Parent).Include(x => x.FileContent).SingleAsync(x => x.ProjectId == fork.ID && x.Name == "index.html");
+        clonedFile.Parent!.Name.Should().Be("src");
+        clonedFile.FileContent!.Content.Should().Be("<h1>Fork me</h1>");
+        clonedFile.FileContent.VersionNumber.Should().Be(1);
+        (await db.FileVersions.CountAsync(x => x.NodeId == clonedFile.ID)).Should().Be(1);
+        audit.Items.Should().ContainSingle(x => x.ActionType == "ProjectForked");
+    }
+
     private static User NewUser(string name, DateTime now) => new()
     {
         ID = Guid.NewGuid(),

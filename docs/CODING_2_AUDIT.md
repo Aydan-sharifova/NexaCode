@@ -49,7 +49,7 @@ The repository already contains substantial, overlapping user work. Stabilizatio
 | Discover | Partial | Dedicated backend-driven developers/projects/snippets/templates/agents/themes catalog with search, technology, language, popularity, recent and trending filters is integrated; larger-scale search indexing remains |
 | Saved content | Partial | Consolidated `/saved` library covers posts, public projects, snippets, project templates and AI agents with backend type/search filters; bulk organization remains |
 | Advanced notifications | Partial | Unified persisted/realtime notification types cover social, PR/review, invite, role, ban, deadline, deployment, achievement and autonomous AI tasks with database-backed deduplication; generic agent-run completion awaits its unfinished orchestrator |
-| Analytics | Partial | Range-scoped developer and membership-protected project analytics use real Git/PR/review/deployment/social/activity/save/view evidence; repository forks remain explicitly unavailable until a real fork workflow exists |
+| Analytics | Partial | Range-scoped developer and membership-protected project analytics use real Git/PR/review/deployment/social/activity/save/view/fork evidence |
 
 ## Critical security decisions
 
@@ -180,9 +180,9 @@ The repository already contains substantial, overlapping user work. Stabilizatio
 
 - Developer analytics now reports commits, PRs, reviews, deployments, projects, contributions, followers, posts and snippets for the selected period from persisted evidence.
 - Project analytics reports unique viewer/day views, project-share likes, project saves, contributors, verified deployments and activity. Private projects are included only through current membership; public detail access enforces blocking before recording a view.
-- Fork count is visibly marked unavailable instead of fabricating a zero-as-success metric because a real repository fork workflow does not yet exist.
-- Migration `20260823081919_AddProjectViewAnalytics` is applied. Authenticated smoke returned `200` for analytics and public view tracking, exposed all nine developer metrics and no inaccessible private project. The temporary account was deleted.
-- Backend/frontend builds, 280/280 backend tests and 34/34 frontend tests pass.
+- Fork count is derived from persisted fork provenance. Public projects can be forked into a private, owner-controlled repository with cloned hierarchy, text/binary content and fresh version history; blocking, size and hierarchy boundaries are enforced.
+- Migrations `20260823081919_AddProjectViewAnalytics` and `20260825005048_AddProjectForkProvenance` are applied; EF reports no pending model changes.
+- Backend tests pass 300/300 and frontend tests pass 36/36. The production frontend build passes. The browser suite passes 9/9 runnable flows with one credential-dependent smoke skipped; fork-specific PostgreSQL container coverage is present and skips locally when Docker is unavailable.
 
 ## Verified achievements and reputation
 

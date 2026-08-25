@@ -34,12 +34,15 @@ public sealed class ForkPublicProjectHandler(AppDbContext db, ICurrentUser curre
         }
         var now = DateTime.UtcNow;
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var fork = new Project { ID = Guid.NewGuid(), Name = $"{source.Name} Fork", Description = source.Description, OwnerId = current.UserId, DefaultLanguage = source.DefaultLanguage, IsPublic = false, CreatedAt = now, CreatAt = now, Status = ProjectStatus.Active, ProtectedBranch = source.ProtectedBranch, RequiredPullRequestApprovals = source.RequiredPullRequestApprovals, RequirePassingPullRequestTests = source.RequirePassingPullRequestTests, ForkedFromProjectId = source.ID };
+        var forkName = source.Name.Length > 115 ? $"{source.Name[..115]} Fork" : $"{source.Name} Fork";
+        var fork = new Project { ID = Guid.NewGuid(), Name = forkName, Description = source.Description, OwnerId = current.UserId, DefaultLanguage = source.DefaultLanguage, DatabaseProvider = source.DatabaseProvider, DatabaseSchemaJson = source.DatabaseSchemaJson, IsPublic = false, CreatedAt = now, CreatAt = now, Status = ProjectStatus.Active, ProtectedBranch = source.ProtectedBranch, RequiredPullRequestApprovals = source.RequiredPullRequestApprovals, RequirePassingPullRequestTests = source.RequirePassingPullRequestTests, ForkedFromProjectId = source.ID };
         db.Projects.Add(fork);
         db.ProjectMembers.Add(new ProjectMember { ID = Guid.NewGuid(), ProjectId = fork.ID, UserId = current.UserId, Role = ProjectRole.Owner, JoinedAt = now, CreatAt = now });
         var map = new Dictionary<Guid, WorkspaceNode>();
         foreach (var sourceNode in sourceNodes.OrderBy(x => Depth(x, [])))
         {
+            if (sourceNode.ParentId.HasValue && !map.ContainsKey(sourceNode.ParentId.Value))
+                throw new ConflictException("The source workspace hierarchy contains a missing parent.");
             var clone = new WorkspaceNode { ID = Guid.NewGuid(), ProjectId = fork.ID, ParentId = sourceNode.ParentId.HasValue ? map[sourceNode.ParentId.Value].ID : null, Name = sourceNode.Name, NodeType = sourceNode.NodeType, CreatAt = now, UpdateAt = now };
             map[sourceNode.ID] = clone;
             db.WorkspaceNodes.Add(clone);
