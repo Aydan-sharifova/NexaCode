@@ -359,6 +359,7 @@ below. The command applies pending migrations first, verifies the email, grants
 
 ```bash
 AdminBootstrap__Email=admin@example.com \
+AdminBootstrap__Enabled=true \
 AdminBootstrap__UserName=platform-admin \
 AdminBootstrap__FirstName=Platform \
 AdminBootstrap__LastName=Administrator \
@@ -367,7 +368,9 @@ dotnet Coding.Api.dll --bootstrap-admin
 ```
 
 Keep these values in the hosting provider's secret environment storage and remove
-`AdminBootstrap__Password` after the one-shot command succeeds.
+`AdminBootstrap__Password` and set `AdminBootstrap__Enabled=false` after the bootstrap
+succeeds. On hosts without a one-off shell, `AdminBootstrap__Enabled=true` runs the same
+bootstrap during startup and then continues serving the application normally.
 
 The production runbook is [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). See the
 [deployment audit](docs/DEPLOYMENT_AUDIT.md), [domain/TLS guide](docs/DOMAIN_AND_SSL.md),

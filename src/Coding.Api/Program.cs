@@ -73,6 +73,7 @@ try
     var app = builder.Build();
     var migrationOnly = args.Contains("--migrate", StringComparer.OrdinalIgnoreCase);
     var bootstrapAdminOnly = args.Contains("--bootstrap-admin", StringComparer.OrdinalIgnoreCase);
+    var bootstrapAdminOnStartup = builder.Configuration.GetValue("AdminBootstrap:Enabled", false);
     var demoSeedOnly = args.Contains("--demo-seed", StringComparer.OrdinalIgnoreCase);
     var demoResetOnly = args.Contains("--demo-reset", StringComparer.OrdinalIgnoreCase);
     var demoModeEnabled = builder.Configuration.GetValue("DemoMode:Enabled", false);
@@ -83,6 +84,7 @@ try
 
     if (migrationOnly ||
         bootstrapAdminOnly ||
+        bootstrapAdminOnStartup ||
         demoSeedOnly ||
         demoResetOnly ||
         builder.Configuration.GetValue("Database:ApplyMigrations", false))
@@ -93,11 +95,11 @@ try
             seedDemoData: demoModeEnabled && !demoResetOnly);
     }
 
-    if (bootstrapAdminOnly)
+    if (bootstrapAdminOnly || bootstrapAdminOnStartup)
     {
         await app.Services.BootstrapProductionAdminAsync();
         Log.Information("Production administrator bootstrap completed successfully.");
-        return;
+        if (bootstrapAdminOnly) return;
     }
 
     if (demoResetOnly)
