@@ -20,7 +20,8 @@ public sealed class GetProjectDatabaseSchemaHandler(AppDbContext db, ICurrentUse
         var schemas = string.IsNullOrWhiteSpace(project.DatabaseSchemaJson)
             ? []
             : JsonSerializer.Deserialize<List<DatabaseSchemaDto>>(project.DatabaseSchemaJson) ?? [];
-        return new(!string.IsNullOrWhiteSpace(project.DatabaseProvider), project.DatabaseProvider, schemas);
+        var version = await db.Projects.AsNoTracking().Where(item => item.ID == request.ProjectId).Select(item => item.DatabaseSchemaVersion).SingleAsync(cancellationToken);
+        return new(!string.IsNullOrWhiteSpace(project.DatabaseProvider), project.DatabaseProvider, version, schemas);
     }
 }
 
@@ -42,9 +43,10 @@ public sealed class ConfigureProjectDatabaseHandler(AppDbContext db, ICurrentUse
         var schemas = CreateStarterSchema(provider, schemaName);
         project.DatabaseProvider = provider;
         project.DatabaseSchemaJson = JsonSerializer.Serialize(schemas);
+        project.DatabaseSchemaVersion = 1;
         project.UpdateAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
-        return new(true, provider, schemas);
+        return new(true, provider, project.DatabaseSchemaVersion, schemas);
     }
 
     private static string NormalizeSchemaName(string value, string provider)

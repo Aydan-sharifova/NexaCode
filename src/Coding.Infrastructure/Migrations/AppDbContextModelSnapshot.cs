@@ -3034,6 +3034,11 @@ namespace Coding.Infrastructure.Migrations
                     b.Property<string>("DatabaseSchemaJson")
                         .HasColumnType("jsonb");
 
+                    b.Property<int>("DatabaseSchemaVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTime?>("DeadlineAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3104,6 +3109,62 @@ namespace Coding.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_Projects_RequiredPullRequestApprovals", "\"RequiredPullRequestApprovals\" BETWEEN 1 AND 5");
                         });
+                });
+
+            modelBuilder.Entity("Coding.Models.ProjectDatabaseMigration", b =>
+                {
+                    b.Property<Guid>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AppliedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("BaseVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DdlPreview")
+                        .IsRequired()
+                        .HasMaxLength(12000)
+                        .HasColumnType("character varying(12000)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProposedSchemaJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdateAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("CreatedById");
+
+                    b.HasIndex("ProjectId", "CreatAt");
+
+                    b.ToTable("ProjectDatabaseMigrations");
                 });
 
             modelBuilder.Entity("Coding.Models.ProjectDeployment", b =>
@@ -3832,6 +3893,11 @@ namespace Coding.Infrastructure.Migrations
                     b.Property<DateTime>("ExpireDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("FamilyId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -3854,7 +3920,7 @@ namespace Coding.Infrastructure.Migrations
                     b.HasIndex("Token")
                         .IsUnique();
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "FamilyId");
 
                     b.ToTable("RefreshTokens");
                 });
@@ -6034,6 +6100,25 @@ namespace Coding.Infrastructure.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("Coding.Models.ProjectDatabaseMigration", b =>
+                {
+                    b.HasOne("Coding.Models.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Coding.Models.Project", "Project")
+                        .WithMany("DatabaseMigrations")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("Coding.Models.ProjectDeployment", b =>
                 {
                     b.HasOne("Coding.Models.User", "DeployedBy")
@@ -6875,6 +6960,8 @@ namespace Coding.Infrastructure.Migrations
                     b.Navigation("AutonomousTestRuns");
 
                     b.Navigation("Commits");
+
+                    b.Navigation("DatabaseMigrations");
 
                     b.Navigation("DebuggingIncidents");
 

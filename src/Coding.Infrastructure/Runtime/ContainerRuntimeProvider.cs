@@ -80,9 +80,15 @@ public sealed class ContainerRuntimeProvider(
                 {
                     await process.WaitForExitAsync(timeout.Token);
                 }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                catch (OperationCanceledException)
                 {
-                    process.Kill(entireProcessTree: true);
+                    if (!process.HasExited)
+                    {
+                        try { process.Kill(entireProcessTree: true); }
+                        catch (InvalidOperationException) { }
+                    }
+                    if (cancellationToken.IsCancellationRequested)
+                        throw;
                     logger.LogWarning(
                         "Runtime execution timed out for language {Language} after {ElapsedMs} ms.",
                         request.Language, stopwatch.ElapsedMilliseconds);

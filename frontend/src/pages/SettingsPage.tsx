@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ErrorState, LoadingState } from "../components/AsyncState";
-import { settingsApi, type Preference } from "../features/settings/api";
+import { settingsApi, type NotificationPreference, type Preference, type Settings } from "../features/settings/api";
 import { useToast } from "../contexts/ToastContext";
 import {
   languages,
@@ -72,8 +72,9 @@ export function SettingsPage() {
     [loggingOut, setLoggingOut] = useState(false),
     qc = useQueryClient(),
     { show } = useToast(),
+    settingsKey = ["settings", session?.user.id] as const,
     settings = useQuery({
-      queryKey: ["settings", session?.user.id],
+      queryKey: settingsKey,
       queryFn: settingsApi.get,
       refetchOnMount: "always",
     }),
@@ -200,6 +201,17 @@ export function SettingsPage() {
   });
   const saveNotifications = useMutation({
     mutationFn: settingsApi.notifications,
+    onMutate: async (notifications: NotificationPreference[]) => {
+      await qc.cancelQueries({ queryKey: settingsKey });
+      const previous = qc.getQueryData<Settings>(settingsKey);
+      qc.setQueryData<Settings>(settingsKey, (current) => current ? { ...current, notifications } : current);
+      return { previous };
+    },
+    onError: (error, _notifications, context) => {
+      if (context?.previous) qc.setQueryData(settingsKey, context.previous);
+      show(error.message, "error");
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: settingsKey }),
     onSuccess: () => show("Notification preferences saved."),
   });
   const avatar = useMutation({

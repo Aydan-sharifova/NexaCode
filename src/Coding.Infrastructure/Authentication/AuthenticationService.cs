@@ -183,27 +183,39 @@ public sealed class AuthenticationService(
         CancellationToken cancellationToken)
     {
         var tokenHash = HashToken(request.RefreshToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken);
         var storedToken = await context.RefreshTokens
+            .FromSqlInterpolated($"SELECT * FROM \"RefreshTokens\" WHERE \"Token\" = {tokenHash} FOR UPDATE")
             .Include(item => item.User)
             .ThenInclude(item => item.UserRoles)
             .ThenInclude(item => item.Role)
-            .SingleOrDefaultAsync(item => item.Token == tokenHash, cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken);
 
-        if (storedToken is null || storedToken.IsRevoked || storedToken.ExpireDate <= DateTime.UtcNow)
+        if (storedToken is null || storedToken.ExpireDate <= DateTime.UtcNow)
             throw new UnauthorizedException("The refresh token is invalid or expired.");
+        if (storedToken.IsRevoked)
+        {
+            await RevokeTokenFamilyAsync(storedToken, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            throw new UnauthorizedException("The refresh token is invalid or expired.");
+        }
         await EnsureAccountActiveAsync(storedToken.User, cancellationToken);
 
+        var now = DateTime.UtcNow;
         storedToken.IsRevoked = true;
-        storedToken.UpdateAt = DateTime.UtcNow;
+        storedToken.UpdateAt = now;
 
         var roles = storedToken.User.UserRoles.Select(item => item.Role.Name).Distinct().ToArray();
-        return await IssueTokensAsync(
+        var response = await IssueTokensAsync(
             storedToken.User,
             roles,
             cancellationToken,
             demoEnvironment.TryGetRole(storedToken.User.ID, out var demoRole)
                 ? demoRole
-                : null);
+                : null,
+            storedToken.FamilyId);
+        await transaction.CommitAsync(cancellationToken);
+        return response;
     }
 
     public async Task RevokeAsync(
@@ -310,7 +322,8 @@ public sealed class AuthenticationService(
         User user,
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken,
-        DemoRole? demoRole = null)
+        DemoRole? demoRole = null,
+        Guid? tokenFamilyId = null)
     {
         var now = DateTime.UtcNow;
         var sessionId = Guid.NewGuid();
@@ -356,6 +369,7 @@ public sealed class AuthenticationService(
             ID = Guid.NewGuid(),
             UserId = user.ID,
             Token = HashToken(plainRefreshToken),
+            FamilyId = tokenFamilyId ?? Guid.NewGuid(),
             ExpireDate = demoRole.HasValue
                 ? now.AddHours(demoEnvironment.RefreshTokenHours)
                 : now.Add(RefreshTokenLifetime),
@@ -387,6 +401,16 @@ public sealed class AuthenticationService(
                 demoRole.HasValue,
                 demoRole?.ToString(),
                 demoRole.HasValue ? demoEnvironment.SampleProjectId : null));
+    }
+
+    private async Task RevokeTokenFamilyAsync(RefreshToken token, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        await context.RefreshTokens.Where(item => item.UserId == token.UserId && item.FamilyId == token.FamilyId && !item.IsRevoked)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.IsRevoked, true).SetProperty(item => item.UpdateAt, now), cancellationToken);
+        await context.UserSessions.Where(item => item.UserId == token.UserId && item.RefreshToken.FamilyId == token.FamilyId && item.RevokedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.RevokedAt, now), cancellationToken);
+        await activityLogger.LogAsync(new(token.UserId, null, "RefreshTokenReuseDetected", nameof(RefreshToken), token.ID, "A rotated refresh token was reused; its session family was revoked."), cancellationToken);
     }
 
     private async Task EnsureAccountActiveAsync(User user, CancellationToken cancellationToken)

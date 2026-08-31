@@ -5,6 +5,7 @@ using Coding.Exceptions;
 using Coding.Enums;
 using Coding.Domain.Services;
 using Coding.Application.Features.Debugging;
+using Coding.Application.Features.Activities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,12 +13,13 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace Coding.Controllers;
 
-[ApiController, Authorize, EnableRateLimiting("ai"), Route("api/projects/{projectId:guid}/execution")]
+[ApiController, Authorize, EnableRateLimiting("runtime"), Route("api/projects/{projectId:guid}/execution")]
 public sealed class CodeExecutionController(
     AppDbContext db,
     ICurrentUser currentUser,
     IRuntimeProvider runtime,
-    IDebuggingTimelineService debugging) : ControllerBase
+    IDebuggingTimelineService debugging,
+    IActivityLogger activity) : ControllerBase
 {
     private const int MaximumSourceCharacters = 100_000;
 
@@ -39,19 +41,21 @@ public sealed class CodeExecutionController(
         var source = request.Source?.Trim() ?? string.Empty;
         if (source.Length is 0 or > MaximumSourceCharacters)
             return BadRequest($"C# source must contain 1 to {MaximumSourceCharacters:N0} characters.");
+        if (request.WorkspaceNodeId.HasValue && !await db.WorkspaceNodes.AsNoTracking().AnyAsync(x => x.ID == request.WorkspaceNodeId && x.ProjectId == projectId && x.NodeType == WorkspaceNodeType.File, cancellationToken))
+            return BadRequest("The selected workspace file does not belong to this project.");
 
         try
         {
             var result = await runtime.ExecuteAsync(
                 new RuntimeExecutionRequest("csharp", source, request.TimeoutSeconds ?? 8),
                 cancellationToken);
-            if (request.WorkspaceNodeId.HasValue && !await db.WorkspaceNodes.AsNoTracking().AnyAsync(x => x.ID == request.WorkspaceNodeId && x.ProjectId == projectId && x.NodeType == WorkspaceNodeType.File, cancellationToken))
-                return BadRequest("The selected workspace file does not belong to this project.");
             var incidentId = await debugging.CaptureFailureAsync(new DebugExecutionCapture(projectId, currentUser.UserId, request.WorkspaceNodeId, DebuggingIncidentKind.Runtime, "csharp", source, result.ExitCode, result.Stdout, result.Stderr, result.TimedOut, result.DurationMs), cancellationToken);
+            await activity.LogAsync(new(currentUser.UserId, projectId, result.ExitCode is 0 && !result.TimedOut ? "ExecutionSucceeded" : "ExecutionFailed", "RuntimeExecution", request.WorkspaceNodeId, result.ExitCode is 0 && !result.TimedOut ? "C# execution completed." : "C# execution returned a failure result.", new Dictionary<string, object?> { ["language"] = "csharp", ["exitCode"] = result.ExitCode, ["timedOut"] = result.TimedOut, ["durationMs"] = result.DurationMs, ["incidentId"] = incidentId }), cancellationToken);
             return Ok(new CodeExecutionResponse(result.ExitCode, result.Stdout, result.Stderr, result.TimedOut, result.DurationMs, incidentId));
         }
         catch (InvalidOperationException exception)
         {
+            await activity.LogAsync(new(currentUser.UserId, projectId, "ExecutionUnavailable", "RuntimeExecution", request.WorkspaceNodeId, "C# execution runtime was unavailable.", new Dictionary<string, object?> { ["language"] = "csharp" }), cancellationToken);
             return StatusCode(StatusCodes.Status503ServiceUnavailable, exception.Message);
         }
     }

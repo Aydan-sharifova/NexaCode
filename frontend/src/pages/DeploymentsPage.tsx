@@ -4,12 +4,25 @@ import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState";
 import { useToast } from "../contexts/ToastContext";
 import { deploymentKeys, deploymentsApi } from "../features/deployments/api";
 import { useProject } from "../features/projects/hooks";
+import { shareUrl } from "../utils/shareUrl";
 
 export function DeploymentsPage() {
   const { projectId = "" } = useParams(),
     client = useQueryClient(),
     { show } = useToast(),
     project = useProject(projectId);
+  const shareDeployment = async (url: string) => {
+    const absoluteUrl = new URL(url, window.location.origin).href;
+    try {
+      const result = await shareUrl(
+        project.data?.name ?? "Deployment",
+        absoluteUrl,
+      );
+      if (result === "copied") show("Deployment link copied.");
+    } catch {
+      show("Deployment link could not be shared.", "error");
+    }
+  };
   const canDeploy = Boolean(
     project.data?.isPublic &&
     !project.data.isReadOnly &&
@@ -95,9 +108,17 @@ export function DeploymentsPage() {
               </p>
               <footer>
                 <span>{new Date(item.deployedAt).toLocaleString()}</span>
-                <a href={item.url} target="_blank" rel="noreferrer">
-                  Open deployment ↗
-                </a>
+                <span className="deployment-actions">
+                  <button
+                    type="button"
+                    onClick={() => void shareDeployment(item.url)}
+                  >
+                    Share
+                  </button>
+                  <a href={item.url} target="_blank" rel="noreferrer">
+                    Open deployment ↗
+                  </a>
+                </span>
               </footer>
             </article>
           ))}

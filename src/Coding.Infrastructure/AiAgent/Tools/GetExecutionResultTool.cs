@@ -4,15 +4,16 @@ using Coding.Data;
 using Coding.Enums;
 using Coding.Infrastructure.Projects;
 using Coding.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Coding.Infrastructure.AiAgent.Tools;
 
 /// <summary>
-/// Returns the result of a previous sandbox execution. The sandbox is not
-/// implemented in Phase 2; this tool returns a structured "unavailable"
-/// response so the orchestrator can plan against it during the sandbox phase.
+/// Returns bounded, redacted evidence from a project execution. Successful
+/// runs intentionally retain metadata only; failed runs may expose their
+/// correlated debugging incident to the project's authorized agent.
 /// </summary>
-public sealed class GetExecutionResultTool(AppDbContext db) : IAiTool
+public sealed class GetExecutionResultTool(AppDbContext db, IAiSecretRedactionService redaction) : IAiTool
 {
     public static readonly AiToolDescriptor StaticDescriptor = new(
         Name: "get_execution_result",
@@ -28,13 +29,41 @@ public sealed class GetExecutionResultTool(AppDbContext db) : IAiTool
     {
         await ProjectAccess.RequireMemberAsync(db, run.ProjectId, run.UserId, cancellationToken);
         var input = ParseInput(arguments);
+        if (!Guid.TryParse(input.ExecutionId, out var executionId))
+            throw new ArgumentException("executionId must be a valid identifier.");
+        var execution = await db.DebuggingExecutionObservations.AsNoTracking()
+            .Include(item => item.Incident)
+            .SingleOrDefaultAsync(item => item.ID == executionId && item.ProjectId == run.ProjectId, cancellationToken);
+        if (execution is null)
+            return new AiReadToolGuard.AiTextResult("Execution result not found.", "{\"found\":false}");
+        var incident = execution.Incident;
         var json = JsonSerializer.Serialize(new
         {
-            executionId = input.ExecutionId,
-            available = false,
-            reason = "Sandbox execution is not available in this version."
+            found = true,
+            executionId = execution.ID,
+            execution.Language,
+            kind = execution.Kind.ToString(),
+            execution.Succeeded,
+            execution.ExitCode,
+            execution.TimedOut,
+            execution.DurationMs,
+            execution.ExecutedAt,
+            execution.WorkspaceNodeId,
+            outputAvailable = incident is not null,
+            incident = incident is null ? null : new
+            {
+                incidentId = incident.ID,
+                status = incident.Status.ToString(),
+                incident.ErrorSummary,
+                stackTrace = Limit(incident.StackTrace, 12_000),
+                stdout = Limit(incident.Stdout, 12_000),
+                stderr = Limit(incident.Stderr, 12_000)
+            },
+            note = incident is null
+                ? "Successful execution output is not retained; only bounded metadata is available."
+                : "Failure output is provided from the persisted debugging incident."
         });
-        return new AiReadToolGuard.AiTextResult("Execution result unavailable", json);
+        return new AiReadToolGuard.AiTextResult(incident is null ? "Execution metadata retrieved" : "Execution failure evidence retrieved", redaction.Redact(json));
     }
 
     private static GetExecutionResultInput ParseInput(JsonElement raw)
@@ -45,6 +74,10 @@ public sealed class GetExecutionResultTool(AppDbContext db) : IAiTool
             throw new ArgumentException("executionId is required.");
         return new GetExecutionResultInput(id);
     }
+
+    private static string? Limit(string? value, int maximum) => string.IsNullOrEmpty(value)
+        ? value
+        : value.Length <= maximum ? value : value[..maximum] + "\n… output truncated";
 }
 
 public sealed record GetExecutionResultInput(string ExecutionId);

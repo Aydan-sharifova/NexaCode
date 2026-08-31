@@ -44,6 +44,9 @@ public sealed class ProjectController(ISender sender) : ControllerBase
     [HttpPut("{projectId:guid}/members/{userId:guid}/role")]
     public async Task<IActionResult> ChangeRole(Guid projectId, Guid userId, ChangeRoleRequest request, CancellationToken cancellationToken) { await sender.Send(new ChangeProjectMemberRoleCommand(projectId, userId, request.Role), cancellationToken); return NoContent(); }
 
+    [HttpPut("{projectId:guid}/ownership")]
+    public async Task<IActionResult> TransferOwnership(Guid projectId, TransferOwnershipRequest request, CancellationToken cancellationToken) { await sender.Send(new TransferProjectOwnershipCommand(projectId, request.NewOwnerId), cancellationToken); return NoContent(); }
+
     [HttpPost("{projectId:guid}/invitations")]
     [EnableRateLimiting("invitations")]
     public Task<CreatedInvitation> Invite(Guid projectId, InviteMemberRequest request, CancellationToken cancellationToken) => sender.Send(new InviteProjectMemberCommand(projectId, request.Email, request.Role), cancellationToken);
@@ -77,5 +80,6 @@ public sealed record CreateProjectRequest(string Name, string? Description, stri
 public sealed record UpdateProjectRequest(string Name, string? Description, string DefaultLanguage, bool IsPublic);
 public sealed record InviteMemberRequest(string Email, ProjectRole Role);
 public sealed record ChangeRoleRequest(ProjectRole Role);
+public sealed record TransferOwnershipRequest(Guid NewOwnerId);
 public sealed record InvitationTokenRequest(string Token);
 public sealed record ExtendProjectDeadlineRequest(DateTime DeadlineAt);

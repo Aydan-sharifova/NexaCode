@@ -15,6 +15,7 @@ public sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Property(project => project.DefaultLanguage).HasMaxLength(50);
         builder.Property(project => project.DatabaseProvider).HasMaxLength(30);
         builder.Property(project => project.DatabaseSchemaJson).HasColumnType("jsonb");
+        builder.Property(project => project.DatabaseSchemaVersion).HasDefaultValue(0);
         builder.Property(project => project.Status).HasConversion<int>();
         builder.Property(project => project.ProtectedBranch).HasMaxLength(200).HasDefaultValue("main").IsRequired();
         builder.Property(project => project.RequiredPullRequestApprovals).HasDefaultValue(1);

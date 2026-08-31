@@ -11,6 +11,7 @@ export const projectApi = {
   invitations: (id: string) => apiClient.get<ProjectInvitation[]>(`/projects/${id}/invitations`),
   invite: (id: string, email: string, role: Exclude<ProjectRole, "Owner">) => apiClient.post<{ id: string; token: string; expiresAt: string }>(`/projects/${id}/invitations`, { email, role }),
   changeRole: (id: string, userId: string, role: Exclude<ProjectRole, "Owner">) => apiClient.put<void>(`/projects/${id}/members/${userId}/role`, { role }),
+  transferOwnership: (id: string, newOwnerId: string) => apiClient.put<void>(`/projects/${id}/ownership`, { newOwnerId }),
   removeMember: (id: string, userId: string) => apiClient.delete<void>(`/projects/${id}/members/${userId}`),
   extendDeadline: (id: string, deadlineAt: string) => apiClient.put<ProjectDeadlineState>(`/projects/${id}/deadline`, { deadlineAt }),
   acceptInvitation: (token: string) => apiClient.post<{ projectId: string }>("/projects/invitations/accept", { token }),

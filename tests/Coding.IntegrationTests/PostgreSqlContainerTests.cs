@@ -5,7 +5,18 @@ using Coding.Infrastructure.Repositories;
 using Coding.Application.Features.Repositories;
 using Coding.Application.Abstractions;
 using Coding.Application.Features.Activities;
+using Coding.Application.Features.Notifications;
+using Coding.Application.Features.Projects;
 using Coding.Infrastructure.Deployments;
+using Coding.Infrastructure.Projects;
+using Coding.Infrastructure.Search;
+using Coding.Application.Features.Search;
+using Coding.Application.Features.DatabaseMetadata;
+using Coding.Infrastructure.DatabaseMetadata;
+using Coding.Infrastructure.Authentication;
+using Coding.Application.Features.Demo;
+using Coding.DTOS.Auth;
+using Coding.Services.Interfaces;
 using Coding.Enums;
 using Coding.Models;
 using FluentAssertions;
@@ -14,6 +25,9 @@ using Npgsql;
 using System.Diagnostics;
 using Testcontainers.PostgreSql;
 using Xunit;
+using Moq;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 
 namespace Coding.IntegrationTests;
 
@@ -169,6 +183,113 @@ public sealed class PostgreSqlContainerTests : IAsyncLifetime
         audit.Items.Should().ContainSingle(x => x.ActionType == "ProjectForked");
     }
 
+    [DockerFact]
+    public async Task Project_owner_can_atomically_transfer_ownership_to_an_existing_member()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(postgres.GetConnectionString()).Options;
+        await using var db = new AppDbContext(options);
+        await db.Database.MigrateAsync();
+        var now = DateTime.UtcNow;
+        var owner = NewUser("transfer_owner", now);
+        var successor = NewUser("transfer_successor", now);
+        var project = new Project { ID = Guid.NewGuid(), Name = "Transfer", Owner = owner, OwnerId = owner.ID, DefaultLanguage = "C#", CreatedAt = now, CreatAt = now };
+        db.AddRange(owner, successor, project,
+            new ProjectMember { ID = Guid.NewGuid(), Project = project, User = owner, Role = ProjectRole.Owner, JoinedAt = now, CreatAt = now },
+            new ProjectMember { ID = Guid.NewGuid(), Project = project, User = successor, Role = ProjectRole.Developer, JoinedAt = now, CreatAt = now });
+        await db.SaveChangesAsync();
+        var notifications = new CapturingNotificationService();
+
+        await new TransferProjectOwnershipHandler(db, new TestCurrentUser(owner.ID, owner.Email), notifications)
+            .Handle(new TransferProjectOwnershipCommand(project.ID, successor.ID), default);
+        db.ChangeTracker.Clear();
+
+        (await db.Projects.SingleAsync(item => item.ID == project.ID)).OwnerId.Should().Be(successor.ID);
+        var roles = await db.ProjectMembers.Where(item => item.ProjectId == project.ID).ToDictionaryAsync(item => item.UserId, item => item.Role);
+        roles[owner.ID].Should().Be(ProjectRole.Admin);
+        roles[successor.ID].Should().Be(ProjectRole.Owner);
+        notifications.Items.Should().ContainSingle(item => item.UserId == successor.ID && item.Type == NotificationType.RoleChange);
+    }
+
+    [DockerFact]
+    public async Task User_search_hides_private_and_blocked_profiles_and_supports_at_public_id()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(postgres.GetConnectionString()).Options;
+        await using var db = new AppDbContext(options);
+        await db.Database.MigrateAsync();
+        var now = DateTime.UtcNow;
+        var viewer = NewUser("search_viewer", now);
+        var visible = NewUser("search_visible", now);
+        var hidden = NewUser("search_hidden", now);
+        var blocked = NewUser("search_blocked", now);
+        var blockedProject = new Project { ID = Guid.NewGuid(), Name = "Search leak project", Owner = blocked, OwnerId = blocked.ID, DefaultLanguage = "C#", IsPublic = true, CreatedAt = now, CreatAt = now };
+        hidden.DeveloperProfile = new DeveloperProfile { ID = Guid.NewGuid(), User = hidden, UserId = hidden.ID, DisplayName = "Hidden", IsProfilePublic = false, CreatedAt = now, UpdatedAt = now, CreatAt = now };
+        db.AddRange(viewer, visible, hidden, blocked, blockedProject,
+            new UserBlock { ID = Guid.NewGuid(), Blocker = viewer, BlockerId = viewer.ID, Blocked = blocked, BlockedId = blocked.ID, CreatedAt = now, CreatAt = now });
+        await db.SaveChangesAsync();
+        var lookup = new UserLookupService(db);
+
+        var results = await lookup.SearchAsync(viewer.ID, "search", 1, 20, default);
+        results.Items.Should().Contain(item => item.PublicId == visible.PublicId);
+        results.Items.Should().NotContain(item => item.PublicId == hidden.PublicId || item.PublicId == blocked.PublicId);
+        var byPublicId = await lookup.SearchAsync(viewer.ID, $"@{visible.PublicId}", 1, 20, default);
+        byPublicId.Items.Should().ContainSingle(item => item.PublicId == visible.PublicId);
+        var byExactEmail = await lookup.SearchAsync(viewer.ID, visible.Email, 1, 20, default);
+        byExactEmail.Items.Should().ContainSingle(item => item.PublicId == visible.PublicId);
+        var global = new GlobalSearchHandler(db, new TestCurrentUser(viewer.ID, viewer.Email));
+        var globalUsers = await global.Handle(new GlobalSearchQuery("search", SearchResultType.User, PageSize: 20), default);
+        globalUsers.Groups.Single().Items.Should().Contain(item => item.NavigationUrl.EndsWith(visible.PublicId));
+        globalUsers.Groups.Single().Items.Should().NotContain(item => item.NavigationUrl.EndsWith(hidden.PublicId) || item.NavigationUrl.EndsWith(blocked.PublicId));
+        var globalProjects = await global.Handle(new GlobalSearchQuery("leak", SearchResultType.Project, PageSize: 20), default);
+        globalProjects.Groups.Single().Items.Should().BeEmpty();
+    }
+
+    [DockerFact]
+    public async Task Database_migration_requires_preview_version_and_applies_atomically()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(postgres.GetConnectionString()).Options;
+        await using var db = new AppDbContext(options);
+        await db.Database.MigrateAsync();
+        var now = DateTime.UtcNow;
+        var owner = NewUser("database_owner", now);
+        var initial = new List<DatabaseSchemaDto> { new("public", []) };
+        var project = new Project { ID = Guid.NewGuid(), Name = "Database", Owner = owner, OwnerId = owner.ID, DefaultLanguage = "C#", DatabaseProvider = "PostgreSQL", DatabaseSchemaJson = System.Text.Json.JsonSerializer.Serialize(initial), DatabaseSchemaVersion = 1, CreatedAt = now, CreatAt = now };
+        db.AddRange(owner, project, new ProjectMember { ID = Guid.NewGuid(), Project = project, User = owner, Role = ProjectRole.Owner, JoinedAt = now, CreatAt = now });
+        await db.SaveChangesAsync();
+        var current = new TestCurrentUser(owner.ID, owner.Email);
+        var draft = await new CreateTableMigrationHandler(db, current).Handle(new(project.ID, "add_projects", "public", "projects", [new("id", "uuid", false, true), new("name", "string", false, false)], 1), default);
+
+        draft.Status.Should().Be("Draft");
+        draft.DdlPreview.Should().Contain("CREATE TABLE \"public\".\"projects\"");
+        var applied = await new ApplyDatabaseMigrationHandler(db, current).Handle(new(project.ID, draft.Id, 1, true), default);
+
+        applied.Version.Should().Be(2);
+        applied.Schemas.Single().Tables.Should().ContainSingle(x => x.Name == "projects");
+        (await db.ProjectDatabaseMigrations.SingleAsync(x => x.ID == draft.Id)).Status.Should().Be(ProjectDatabaseMigrationStatus.Applied);
+        await FluentActions.Invoking(() => new ApplyDatabaseMigrationHandler(db, current).Handle(new(project.ID, draft.Id, 1, true), default)).Should().ThrowAsync<ConflictException>();
+    }
+
+    [DockerFact]
+    public async Task Reused_rotated_refresh_token_revokes_its_entire_session_family()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(postgres.GetConnectionString()).Options;
+        await using var db = new AppDbContext(options);
+        await db.Database.MigrateAsync();
+        var now = DateTime.UtcNow;
+        var role = new Role { ID = Guid.NewGuid(), Name = "User", CreatAt = now };
+        var user = NewUser("refresh_family", now); user.EmailVerifiedAt = now;
+        var passwords = new IdentityPasswordService(); user.PasswordHash = passwords.Hash(user, "ValidPass123!");
+        db.AddRange(role, user, new UserRole { User = user, Role = role });
+        await db.SaveChangesAsync();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Jwt:Key"] = new string('k', 64), ["Jwt:Issuer"] = "tests", ["Jwt:Audience"] = "tests", ["Jwt:AccessTokenMinutes"] = "15" }).Build();
+        var service = new AuthenticationService(db, Mock.Of<IEmailSender>(), configuration, passwords, new CapturingActivityLogger(), new HttpContextAccessor { HttpContext = new DefaultHttpContext() }, new DisabledDemoEnvironmentService(), new PublicUserIdGenerator(db));
+        var login = await service.LoginAsync(new LoginRequest { Email = user.Email, Password = "ValidPass123!" }, default);
+        var rotated = await service.RefreshAsync(new RefreshTokenRequest { RefreshToken = login.RefreshToken }, default);
+
+        await FluentActions.Invoking(() => service.RefreshAsync(new RefreshTokenRequest { RefreshToken = login.RefreshToken }, default)).Should().ThrowAsync<UnauthorizedException>();
+        await FluentActions.Invoking(() => service.RefreshAsync(new RefreshTokenRequest { RefreshToken = rotated.RefreshToken }, default)).Should().ThrowAsync<UnauthorizedException>();
+        (await db.RefreshTokens.Where(x => x.UserId == user.ID).ToListAsync()).Should().OnlyContain(x => x.IsRevoked);
+    }
+
     private static User NewUser(string name, DateTime now) => new()
     {
         ID = Guid.NewGuid(),
@@ -189,6 +310,14 @@ file sealed class CapturingActivityLogger : IActivityLogger
 {
     public List<ActivityWrite> Items { get; } = [];
     public Task LogAsync(ActivityWrite activity, CancellationToken cancellationToken = default) { Items.Add(activity); return Task.CompletedTask; }
+}
+
+file sealed class CapturingNotificationService : INotificationService
+{
+    public List<CreateNotificationRequest> Items { get; } = [];
+    public Task<NotificationItem?> CreateAsync(CreateNotificationRequest request, CancellationToken cancellationToken = default) { Items.Add(request); return Task.FromResult<NotificationItem?>(null); }
+    public Task<IReadOnlyList<NotificationItem>> CreateManyAsync(IEnumerable<CreateNotificationRequest> requests, CancellationToken cancellationToken = default) { Items.AddRange(requests); return Task.FromResult<IReadOnlyList<NotificationItem>>([]); }
+    public Task MarkRelatedReadAsync(Guid userId, NotificationType type, Guid relatedEntityId, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 public sealed class DockerFactAttribute : FactAttribute

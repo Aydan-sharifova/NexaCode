@@ -27,6 +27,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    const expire = () => {
+      setSession(null);
+      void signalRService.disconnect();
+    };
+    window.addEventListener("coding:session-expired", expire);
+    return () => window.removeEventListener("coding:session-expired", expire);
+  }, []);
+
   const login = useCallback(async (payload: LoginPayload) => {
     setSession(await authService.login(payload));
   }, []);

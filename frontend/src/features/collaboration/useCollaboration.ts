@@ -20,7 +20,7 @@ export function useCollaboration(projectId: string, activeFileId?: string) {
   const connectionState = useCollaborationStore((state) => state.connectionState);
   useEffect(() => {
     if (!projectId) return;
-    void signalRService.joinProject(projectId).catch((error) => console.error("Unable to join collaboration project", error));
+    void signalRService.joinProject(projectId).catch(() => undefined);
     return () => { void signalRService.leaveProject(projectId); };
   }, [projectId]);
   useEffect(() => {

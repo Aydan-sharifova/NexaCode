@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Coding.Application.Security;
+using Coding.Application.Features.Authentication;
+using MediatR;
 
 namespace Coding.Controllers;
 
@@ -15,11 +17,27 @@ public sealed class AuthenticationController : ControllerBase
     private const string RefreshTokenCookie = "refresh_token";
     private readonly IAuthenticationService authenticationService;
     private readonly IConfiguration configuration;
+    private readonly ISender sender;
 
-    public AuthenticationController(IAuthenticationService authenticationService,IConfiguration configuration)
+    public AuthenticationController(IAuthenticationService authenticationService,IConfiguration configuration, ISender sender)
     {
         this.authenticationService = authenticationService;
         this.configuration=configuration;
+        this.sender = sender;
+    }
+
+    [Authorize]
+    [HttpGet("me")]
+    public async Task<AuthenticatedUser> Me(CancellationToken cancellationToken)
+    {
+        var current = await sender.Send(new GetCurrentAuthenticatedUserQuery(), cancellationToken);
+        var isDemo = string.Equals(User.FindFirst("demo")?.Value, "true", StringComparison.OrdinalIgnoreCase);
+        return current with
+        {
+            IsDemo = isDemo,
+            DemoRole = isDemo ? User.FindFirst("demo_role")?.Value : null,
+            DemoProjectId = isDemo && Guid.TryParse(User.FindFirst("demo_project_id")?.Value, out var projectId) ? projectId : null
+        };
     }
 
     [AllowAnonymous]

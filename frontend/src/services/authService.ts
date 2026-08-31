@@ -12,11 +12,12 @@ async function establishSession(request: Promise<AuthResponse>) {
     throw new Error("The authentication server returned an invalid response. Please try again.");
   }
 
-  tokenStore.set(session.accessToken);
+  tokenStore.set(session.accessToken, session.accessTokenExpiresAt);
   return session;
 }
 
 export const authService = {
+  currentUser: () => apiClient.get<AuthResponse["user"]>("/auth/me"),
   login: (payload: LoginPayload) => establishSession(apiClient.post<AuthResponse>("/auth/login", payload, { retryOnUnauthorized: false })),
   demoLogin: (payload: DemoLoginPayload) => establishSession(apiClient.post<AuthResponse>("/auth/demo-login", payload, { retryOnUnauthorized: false })),
   register: async (payload: RegisterPayload) => {

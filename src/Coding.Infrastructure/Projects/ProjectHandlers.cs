@@ -308,6 +308,34 @@ public sealed class RemoveProjectMemberHandler(AppDbContext context, ICurrentUse
     }
 }
 
+public sealed class TransferProjectOwnershipHandler(AppDbContext context, ICurrentUser currentUser, INotificationService notifications) : IRequestHandler<TransferProjectOwnershipCommand>
+{
+    public async Task Handle(TransferProjectOwnershipCommand request, CancellationToken cancellationToken)
+    {
+        if (request.NewOwnerId == currentUser.UserId) throw new ConflictException("You already own this project.");
+
+        await using var transaction = await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+        var project = await context.Projects.SingleOrDefaultAsync(item => item.ID == request.ProjectId, cancellationToken)
+            ?? throw new NotFoundException("Project not found.");
+        if (project.OwnerId != currentUser.UserId) throw new ForbiddenException("Only the project owner can transfer ownership.");
+
+        var formerOwner = await context.ProjectMembers.SingleAsync(item => item.ProjectId == request.ProjectId && item.UserId == currentUser.UserId, cancellationToken);
+        var newOwner = await context.ProjectMembers.SingleOrDefaultAsync(item => item.ProjectId == request.ProjectId && item.UserId == request.NewOwnerId, cancellationToken)
+            ?? throw new NotFoundException("The new owner must already be a project member.");
+
+        project.OwnerId = request.NewOwnerId;
+        project.UpdateAt = DateTime.UtcNow;
+        formerOwner.Role = ProjectRole.Admin;
+        formerOwner.UpdateAt = DateTime.UtcNow;
+        newOwner.Role = ProjectRole.Owner;
+        newOwner.UpdateAt = DateTime.UtcNow;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        await notifications.CreateAsync(new CreateNotificationRequest(request.NewOwnerId, NotificationType.RoleChange, "Project ownership transferred", $"You are now the owner of {project.Name}.", request.ProjectId, nameof(Project)), cancellationToken);
+    }
+}
+
 public sealed class ListMyProjectsHandler(AppDbContext context, ICurrentUser currentUser) : IRequestHandler<ListMyProjectsQuery, IReadOnlyList<ProjectListItem>>
 {
     public async Task<IReadOnlyList<ProjectListItem>> Handle(ListMyProjectsQuery request, CancellationToken cancellationToken)

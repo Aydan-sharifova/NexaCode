@@ -21,6 +21,15 @@ test("developer publishes an immutable static deployment", async ({ page }) => {
       contentType: "application/json",
       body: JSON.stringify(body),
     });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: ({ url }: ShareData) => {
+        (window as typeof window & { __sharedUrl?: string }).__sharedUrl = url;
+        return Promise.resolve();
+      },
+    });
+  });
   await page.route("**/api/**", async (route) => {
     const request = route.request(),
       path = new URL(request.url()).pathname;
@@ -78,4 +87,12 @@ test("developer publishes an immutable static deployment", async ({ page }) => {
     /\/deploy\/production-site-a1b2c3d4\/$/,
   );
   await expect(page.getByText("Live", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as typeof window & { __sharedUrl?: string }).__sharedUrl,
+      ),
+    )
+    .toMatch(/\/deploy\/production-site-a1b2c3d4\/$/);
 });

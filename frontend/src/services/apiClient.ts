@@ -49,8 +49,13 @@ async function refreshSession(): Promise<AuthResponse> {
     }).then(async (response) => {
       if (!response.ok) throw await getError(response);
       const session = await response.json() as AuthResponse;
-      tokenStore.set(session.accessToken);
+      if (!session?.accessToken || !session?.accessTokenExpiresAt || !session?.user) throw new ApiError("The authentication server returned an invalid session.", 502);
+      tokenStore.set(session.accessToken, session.accessTokenExpiresAt);
       return session;
+    }).catch(error => {
+      tokenStore.clear();
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("coding:session-expired"));
+      throw error;
     }).finally(() => { refreshRequest = null; });
   }
   return refreshRequest;
@@ -62,6 +67,7 @@ interface RequestOptions extends RequestInit {
 
 async function request<TResponse>(path: string, options: RequestOptions = {}): Promise<TResponse> {
   const { retryOnUnauthorized = true, headers, ...requestOptions } = options;
+  if (retryOnUnauthorized && !path.startsWith("/auth/") && tokenStore.expiresSoon()) await refreshSession();
   const token = tokenStore.get();
   let response: Response;
   try {
@@ -95,6 +101,7 @@ async function request<TResponse>(path: string, options: RequestOptions = {}): P
 }
 
 async function requestBlob(path: string, retryOnUnauthorized = true): Promise<Blob> {
+  if (retryOnUnauthorized && tokenStore.expiresSoon()) await refreshSession();
   const token = tokenStore.get();
   const response = await fetch(`${API_URL}${path}`, { credentials: "include", headers: token ? { Authorization: `Bearer ${token}` } : {} });
   if (response.status === 401 && retryOnUnauthorized) { await refreshSession(); return requestBlob(path, false); }

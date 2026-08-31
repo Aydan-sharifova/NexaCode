@@ -142,7 +142,7 @@ public sealed class CollaborationHub(
     {
         if (message.UpdateId == Guid.Empty || string.IsNullOrWhiteSpace(message.EncodedUpdate)) throw new HubException("A valid Yjs update is required.");
         if (!presence.IsInFile(Context.ConnectionId, message.FileId)) throw new HubException("Join the collaborative file before sending updates.");
-        await RequireCollaborativeFile(message.ProjectId, message.FileId);
+        await RequireCollaborativeFileWriter(message.ProjectId, message.FileId);
         byte[] update; try { update = Convert.FromBase64String(message.EncodedUpdate); } catch (FormatException) { throw new HubException("The Yjs update is not valid Base64."); }
         if (update.Length > 2_000_000) throw new HubException("The Yjs update exceeds the maximum size.");
         var appended = await documentStore.AppendUpdateAsync(message.ProjectId, message.FileId, message.UpdateId, update, UserId, Context.ConnectionAborted);
@@ -174,7 +174,7 @@ public sealed class CollaborationHub(
         if (!presence.IsInFile(Context.ConnectionId, operation.FileId))
             throw new HubException("Join the file before sending operations.");
 
-        await RequireFileMember(operation.FileId);
+        await RequireFileWriter(operation.FileId);
         var serverVersion = await InitializeLiveVersion(operation.FileId);
         if (operation.BaseVersion != serverVersion)
         {
@@ -268,7 +268,7 @@ public sealed class CollaborationHub(
 
     public async Task NotifyFileChanged(Guid fileId, int versionNumber, string concurrencyToken)
     {
-        await RequireFileMember(fileId);
+        await RequireFileWriter(fileId);
         if (!presence.IsInFile(Context.ConnectionId, fileId))
             throw new HubException("Join the file before publishing a file change.");
         LiveVersions[fileId] = versionNumber;
@@ -312,6 +312,30 @@ public sealed class CollaborationHub(
         var exists = await db.WorkspaceNodes.AsNoTracking().AnyAsync(node => node.ID == fileId && node.ProjectId == projectId && node.NodeType == WorkspaceNodeType.File && !node.IsDeleted, Context.ConnectionAborted);
         if (!exists) throw new HubException("The file does not belong to the supplied project.");
         await RequireProjectMember(projectId);
+    }
+
+    private async Task RequireCollaborativeFileWriter(Guid projectId, Guid fileId)
+    {
+        var access = await db.ProjectMembers.AsNoTracking()
+            .Where(member => member.ProjectId == projectId && member.UserId == UserId &&
+                db.WorkspaceNodes.Any(node => node.ID == fileId && node.ProjectId == projectId &&
+                    node.NodeType == WorkspaceNodeType.File && !node.IsDeleted))
+            .Select(member => new { member.Role, member.Project.Status, member.Project.DeadlineAt })
+            .SingleOrDefaultAsync(Context.ConnectionAborted);
+        if (access is null)
+            throw new HubException("The file does not belong to an accessible project.");
+        if (!CollaborationAccessPolicy.CanWrite(access.Role, access.Status, access.DeadlineAt, DateTime.UtcNow))
+            throw new HubException("This project role or lifecycle state has read-only workspace access.");
+    }
+
+    private async Task RequireFileWriter(Guid fileId)
+    {
+        var projectId = await db.WorkspaceNodes.AsNoTracking()
+            .Where(node => node.ID == fileId && node.NodeType == WorkspaceNodeType.File && !node.IsDeleted)
+            .Select(node => (Guid?)node.ProjectId)
+            .SingleOrDefaultAsync(Context.ConnectionAborted);
+        if (projectId is null) throw new HubException("File not found.");
+        await RequireCollaborativeFileWriter(projectId.Value, fileId);
     }
 
     private async Task<CollaborativeStateMessage> LoadCollaborativeState(Guid fileId)

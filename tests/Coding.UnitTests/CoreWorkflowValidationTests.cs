@@ -84,6 +84,16 @@ public sealed class CoreWorkflowValidationTests
     }
 
     [Fact]
+    public async Task Ownership_transfer_requires_project_and_new_owner_ids()
+    {
+        var result = await new TransferProjectOwnershipValidator().ValidateAsync(
+            new TransferProjectOwnershipCommand(Guid.Empty, Guid.Empty));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Select(error => error.PropertyName).Should().Contain(["ProjectId", "NewOwnerId"]);
+    }
+
+    [Fact]
     public async Task Valid_file_and_task_commands_pass_validation()
     {
         var file = await new CreateFileValidator().ValidateAsync(

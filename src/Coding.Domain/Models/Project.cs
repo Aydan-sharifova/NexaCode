@@ -24,6 +24,8 @@ namespace Coding.Models
 
         public string? DatabaseSchemaJson { get; set; }
 
+        public int DatabaseSchemaVersion { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime? DeadlineAt { get; set; }
@@ -59,5 +61,6 @@ namespace Coding.Models
     public ICollection<AiUiGeneration> AiUiGenerations { get; set; } = [];
         public ICollection<PullRequest> PullRequests { get; set; } = [];
         public ICollection<ProjectDeployment> Deployments { get; set; } = [];
+        public ICollection<ProjectDatabaseMigration> DatabaseMigrations { get; set; } = [];
     }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { searchApi } from "./api";
 import type { SearchResultType } from "./types";
 
@@ -9,9 +9,11 @@ export function useGlobalSearch(query: string, type?: SearchResultType, projectI
     const timer = window.setTimeout(() => setDebounced(query.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [query]);
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["global-search", debounced, type, projectId],
-    queryFn: ({ signal }) => searchApi.search({ query: debounced, type, projectId }, signal),
+    queryFn: ({ signal, pageParam }) => searchApi.search({ query: debounced, type, projectId, page: pageParam }, signal),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => lastPage.groups.some((group) => group.hasMore) ? lastPage.page + 1 : undefined,
     enabled: debounced.length >= 2,
     staleTime: 15_000,
   });

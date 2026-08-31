@@ -10,8 +10,9 @@ import type { LiveRoomMessage, LiveRoomParticipant, LiveRoomReaction, LiveRoomSt
 type Handler<T> = (payload: T) => void;
 import { COLLABORATION_HUB_URL as HUB_URL } from "../../services/deployment";
 
-class SignalRService {
+export class SignalRService {
   private connection?: HubConnection;
+  private connectRequest?: Promise<void>;
   private projectId?: string;
   private fileId?: string;
   private conversationId?: string;
@@ -31,25 +32,31 @@ class SignalRService {
   private liveRoomReactionListeners = new Set<Handler<LiveRoomReaction>>();
 
   async connect() {
-    if (this.connection?.state === HubConnectionState.Connected || this.connection?.state === HubConnectionState.Connecting) return;
+    if (this.connection?.state === HubConnectionState.Connected || this.connection?.state === HubConnectionState.Reconnecting) return;
+    if (this.connectRequest) return this.connectRequest;
     this.connection = new HubConnectionBuilder().withUrl(HUB_URL, { accessTokenFactory: () => tokenStore.get() ?? "" })
       .withAutomaticReconnect([0, 1000, 2000, 5000, 10000, 30000])
       .configureLogging(import.meta.env.DEV ? LogLevel.Information : LogLevel.Warning).build();
     this.registerHandlers(this.connection);
-    try { await this.connection.start(); useCollaborationStore.getState().setConnectionState("connected"); await this.rejoin(); this.startHeartbeat(); }
-    catch (error) { useCollaborationStore.getState().setConnectionState("failed"); throw error; }
+    const connection = this.connection;
+    this.connectRequest = (async () => {
+      try { await connection.start(); useCollaborationStore.getState().setConnectionState("connected"); await this.rejoin(); this.startHeartbeat(); }
+      catch (error) { useCollaborationStore.getState().setConnectionState("failed"); throw error; }
+      finally { this.connectRequest = undefined; }
+    })();
+    return this.connectRequest;
   }
 
   async disconnect() {
     this.stopHeartbeat(); const connection = this.connection; this.connection = undefined; this.projectId = undefined; this.fileId = undefined; this.conversationId = undefined; this.liveRoomId = undefined;
     useCollaborationStore.getState().clearFileState(); if (connection) await connection.stop(); useCollaborationStore.getState().setConnectionState("disconnected");
   }
-  async joinProject(projectId: string) { this.projectId = projectId; await this.ensureConnected(); await this.connection!.invoke("JoinProject", projectId); }
+  async joinProject(projectId: string) { this.projectId = projectId; const connected = this.isConnected(); await this.ensureConnected(); if (connected && this.isConnected()) await this.connection!.invoke("JoinProject", projectId); }
   async leaveProject(projectId: string) { if (this.isConnected()) await this.connection!.invoke("LeaveProject", projectId); if (this.projectId === projectId) this.projectId = undefined; }
   async joinFile(fileId: string, version: number) {
     if (this.fileId && this.fileId !== fileId && this.isConnected()) await this.connection!.invoke("LeaveFile", this.fileId);
     this.fileId = fileId; useCollaborationStore.getState().clearFileState(); useCollaborationStore.getState().setLiveVersion(fileId, version);
-    await this.ensureConnected(); await this.connection!.invoke("JoinFile", fileId);
+    const connected = this.isConnected(); await this.ensureConnected(); if (connected && this.isConnected()) await this.connection!.invoke("JoinFile", fileId);
   }
   async leaveFile(fileId: string) { if (this.isConnected()) await this.connection!.invoke("LeaveFile", fileId); if (this.fileId === fileId) this.fileId = undefined; useCollaborationStore.getState().clearFileState(); }
 
@@ -73,14 +80,14 @@ class SignalRService {
   onOperation(handler: Handler<CodeOperation>) { this.operationListeners.add(handler); return () => { this.operationListeners.delete(handler); }; }
   onFileChanged(handler: Handler<FileChangedMessage>) { this.changedListeners.add(handler); return () => { this.changedListeners.delete(handler); }; }
   onResync(handler: Handler<ResyncRequiredMessage>) { this.resyncListeners.add(handler); return () => { this.resyncListeners.delete(handler); }; }
-  async joinConversation(conversationId: string) { this.conversationId = conversationId; await this.ensureConnected(); await this.connection!.invoke("JoinConversation", conversationId); }
+  async joinConversation(conversationId: string) { this.conversationId = conversationId; const connected = this.isConnected(); await this.ensureConnected(); if (connected && this.isConnected()) await this.connection!.invoke("JoinConversation", conversationId); }
   async leaveConversation(conversationId: string) { if (this.isConnected()) await this.connection!.invoke("LeaveConversation", conversationId); if (this.conversationId === conversationId) this.conversationId = undefined; }
   startChatTyping(conversationId: string) { if (this.isConnected()) void this.connection!.send("StartChatTyping", conversationId).catch(() => undefined); }
   stopChatTyping(conversationId: string) { if (this.isConnected()) void this.connection!.send("StopChatTyping", conversationId).catch(() => undefined); }
   onMessage(handler: Handler<ChatMessage>) { this.messageListeners.add(handler); return () => { this.messageListeners.delete(handler); }; }
   onConversationUpdated(handler: Handler<string>) { this.conversationListeners.add(handler); return () => { this.conversationListeners.delete(handler); }; }
   onChatTyping(handler: Handler<{ conversationId: string; userId: string; typing: boolean }>) { this.chatTypingListeners.add(handler); return () => { this.chatTypingListeners.delete(handler); }; }
-  async joinLiveRoom(roomId: string) { this.liveRoomId = roomId; await this.ensureConnected(); await this.connection!.invoke("JoinLiveRoom", roomId); }
+  async joinLiveRoom(roomId: string) { this.liveRoomId = roomId; const connected = this.isConnected(); await this.ensureConnected(); if (connected && this.isConnected()) await this.connection!.invoke("JoinLiveRoom", roomId); }
   async leaveLiveRoom(roomId: string) { if (this.isConnected()) await this.connection!.invoke("LeaveLiveRoom", roomId); if (this.liveRoomId === roomId) this.liveRoomId = undefined; }
   onLiveRoomState(handler: Handler<LiveRoomStateEvent>) { this.liveRoomStateListeners.add(handler); return () => { this.liveRoomStateListeners.delete(handler); }; }
   onLiveRoomParticipant(handler: Handler<{ roomId: string; participant: LiveRoomParticipant }>) { this.liveRoomParticipantListeners.add(handler); return () => { this.liveRoomParticipantListeners.delete(handler); }; }

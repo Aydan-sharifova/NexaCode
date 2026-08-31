@@ -24,16 +24,18 @@ public sealed class UserLookupService(AppDbContext db) : IUserLookupService
     {
         var trimmed = query.Trim();
         var normalized = trimmed.ToLowerInvariant();
-        var exactEmail = trimmed.Contains('@');
+        var exactEmail = trimmed.Contains('@') && !trimmed.StartsWith('@');
+        var identityQuery = trimmed.TrimStart('@');
         var offset = (page - 1) * pageSize;
         var users = db.Users.AsNoTracking().Where(user => !user.IsDeleted && !user.IsSuspended &&
+            (user.ID == viewerId || user.DeveloperProfile == null || user.DeveloperProfile.IsProfilePublic) &&
             !db.UserBlocks.Any(block => block.BlockerId == viewerId && block.BlockedId == user.ID || block.BlockerId == user.ID && block.BlockedId == viewerId));
         users = exactEmail
             ? users.Where(user => user.Email.ToLower() == normalized)
-            : users.Where(user => EF.Functions.ILike(user.PublicId, $"%{trimmed}%") ||
-                                  EF.Functions.ILike(user.UserName, $"%{trimmed}%") ||
-                                  EF.Functions.ILike(user.FirstName + " " + user.LastName, $"%{trimmed}%"));
-        var rows = await users.OrderByDescending(user => user.PublicId == trimmed.ToUpper())
+            : users.Where(user => EF.Functions.ILike(user.PublicId, $"%{identityQuery}%") ||
+                                  EF.Functions.ILike(user.UserName, $"%{identityQuery}%") ||
+                                  EF.Functions.ILike(user.FirstName + " " + user.LastName, $"%{identityQuery}%"));
+        var rows = await users.OrderByDescending(user => user.PublicId == identityQuery.ToUpper())
             .ThenBy(user => user.UserName).Skip(offset).Take(pageSize + 1)
             .Select(user => new UserSearchResultDto(user.PublicId, (user.FirstName + " " + user.LastName).Trim(), user.UserName,
                 user.AvatarUrl, user.Bio, user.OwnedProjects.Count(project => project.IsPublic)))

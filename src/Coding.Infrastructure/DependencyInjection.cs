@@ -185,7 +185,12 @@ public static class DependencyInjection
         services.AddScoped<IScreenshotToCodeService, ScreenshotToCodeService>();
         services.AddScoped<IAiUiGeneratorService, AiUiGeneratorService>();
         services.AddOptions<ContainerRuntimeOptions>()
-            .Bind(configuration.GetSection(ContainerRuntimeOptions.SectionName));
+            .Bind(configuration.GetSection(ContainerRuntimeOptions.SectionName))
+            .Validate(options => !options.Enabled ||
+                (System.Text.RegularExpressions.Regex.IsMatch(options.DotNetImage ?? string.Empty, "^[A-Za-z0-9][A-Za-z0-9._/@:-]{0,255}$") &&
+                 options.MaximumOutputCharacters is >= 1_024 and <= 65_536),
+                "Enabled execution requires a safe container image reference and an output limit between 1,024 and 65,536 characters.")
+            .ValidateOnStart();
         services.AddSingleton<IRuntimeProvider, ContainerRuntimeProvider>();
         services.AddScoped<ISocialAccessService, SocialAccessService>();
 

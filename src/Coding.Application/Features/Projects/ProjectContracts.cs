@@ -20,6 +20,7 @@ public sealed record RejectProjectInvitationCommand(string Token) : IRequest;
 public sealed record AcceptProjectInvitationByIdCommand(Guid InvitationId) : IRequest<Guid>;
 public sealed record RejectProjectInvitationByIdCommand(Guid InvitationId) : IRequest;
 public sealed record ChangeProjectMemberRoleCommand(Guid ProjectId, Guid UserId, ProjectRole Role) : IRequest;
+public sealed record TransferProjectOwnershipCommand(Guid ProjectId, Guid NewOwnerId) : IRequest;
 public sealed record RemoveProjectMemberCommand(Guid ProjectId, Guid UserId) : IRequest;
 public sealed record ListMyProjectsQuery : IRequest<IReadOnlyList<ProjectListItem>>;
 public sealed record GetProjectDetailsQuery(Guid ProjectId) : IRequest<ProjectDetails>;
@@ -75,4 +76,13 @@ public sealed class ChangeProjectMemberRoleValidator : AbstractValidator<ChangeP
     public ChangeProjectMemberRoleValidator() => RuleFor(command => command.Role)
         .Must(role => role is ProjectRole.Admin or ProjectRole.Maintainer or ProjectRole.Developer or ProjectRole.Viewer)
         .WithMessage("Use ownership transfer to change the Owner role.");
+}
+
+public sealed class TransferProjectOwnershipValidator : AbstractValidator<TransferProjectOwnershipCommand>
+{
+    public TransferProjectOwnershipValidator()
+    {
+        RuleFor(command => command.ProjectId).NotEmpty();
+        RuleFor(command => command.NewOwnerId).NotEmpty();
+    }
 }

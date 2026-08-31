@@ -13,6 +13,7 @@ import {
   useProjectInvitations,
   useProjectMembers,
   useRemoveMember,
+  useTransferProjectOwnership,
   useUpdateProject,
 } from "../features/projects/hooks";
 import type { ProjectInput, ProjectRole } from "../features/projects/types";
@@ -37,6 +38,7 @@ export function ProjectSettingsPage() {
   const invite = useInviteMember(projectId);
   const changeRole = useChangeMemberRole(projectId);
   const removeMember = useRemoveMember(projectId);
+  const transferOwnership = useTransferProjectOwnership(projectId);
   const extendDeadline = useExtendProjectDeadline(projectId);
   const [editOpen, setEditOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -51,6 +53,7 @@ export function ProjectSettingsPage() {
     userId: string;
     name: string;
   } | null>(null);
+  const [transferring, setTransferring] = useState<{ userId: string; name: string } | null>(null);
   if (project.isLoading)
     return (
       <main className="dashboard-content">
@@ -257,17 +260,10 @@ export function ProjectSettingsPage() {
                       </span>
                     )}
                     {isOwner && member.role !== "Owner" && !isDemo && (
-                      <button
-                        className="remove-action"
-                        onClick={() =>
-                          setRemoving({
-                            userId: member.userId,
-                            name: member.fullName,
-                          })
-                        }
-                      >
-                        Remove
-                      </button>
+                      <div className="member-actions">
+                        <button className="member-action" onClick={() => setTransferring({ userId: member.userId, name: member.fullName })}>Transfer ownership</button>
+                        <button className="remove-action" onClick={() => setRemoving({ userId: member.userId, name: member.fullName })}>Remove</button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -443,6 +439,24 @@ export function ProjectSettingsPage() {
               error instanceof Error ? error.message : "Delete failed.",
               "error",
             );
+          }
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(transferring)}
+        title={`Transfer ownership to ${transferring?.name ?? "member"}?`}
+        description="They will become Owner and your role will change to Admin. This action can only be reversed by the new owner."
+        confirmLabel="Transfer ownership"
+        pending={transferOwnership.isPending}
+        onClose={() => setTransferring(null)}
+        onConfirm={async () => {
+          if (!transferring) return;
+          try {
+            await transferOwnership.mutateAsync(transferring.userId);
+            setTransferring(null);
+            show("Project ownership transferred.");
+          } catch (error) {
+            show(error instanceof Error ? error.message : "Transfer failed.", "error");
           }
         }}
       />

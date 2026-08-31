@@ -181,6 +181,16 @@ public static class ApiServiceCollectionExtensions
                         QueueLimit = 0,
                         AutoReplenishment = true
                     }));
+            options.AddPolicy("runtime", httpContext =>
+                RateLimitPartition.GetConcurrencyLimiter(
+                    httpContext.User.FindFirst("sub")?.Value
+                    ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                    ?? "anonymous",
+                    _ => new ConcurrencyLimiterOptions
+                    {
+                        PermitLimit = 2,
+                        QueueLimit = 0
+                    }));
             options.AddPolicy("realtime", httpContext =>
                 RateLimitPartition.GetConcurrencyLimiter(
                     httpContext.User.Identity?.Name

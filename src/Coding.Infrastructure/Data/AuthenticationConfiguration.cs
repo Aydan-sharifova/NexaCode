@@ -130,6 +130,8 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
     {
         builder.HasIndex(item => item.Token).IsUnique();
         builder.Property(item => item.Token).HasMaxLength(64);
+        builder.Property(item => item.FamilyId).HasDefaultValueSql("gen_random_uuid()");
+        builder.HasIndex(item => new { item.UserId, item.FamilyId });
         builder.HasOne(item => item.User)
             .WithMany(item => item.RefreshTokens)
             .HasForeignKey(item => item.UserId)

@@ -13,7 +13,9 @@ public sealed class GlobalSearchHandler(AppDbContext db, ICurrentUser currentUse
     public async Task<GlobalSearchResponse> Handle(GlobalSearchQuery request, CancellationToken ct)
     {
         var query = string.Join(' ', request.Query.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        var pattern = $"%{query}%";
+        var identityQuery = query.TrimStart('@');
+        var pattern = $"%{identityQuery}%";
+        var exactEmail = query.Contains('@') && !query.StartsWith('@');
         var offset = (request.Page - 1) * request.PageSize;
         var memberships = db.ProjectMembers.AsNoTracking().Where(x => x.UserId == currentUser.UserId);
         var groups = new List<SearchGroupDto>();
@@ -21,7 +23,8 @@ public sealed class GlobalSearchHandler(AppDbContext db, ICurrentUser currentUse
         if (request.Type is null or SearchResultType.Project)
         {
             var rows = await db.Projects.AsNoTracking()
-                .Where(x => (x.IsPublic || memberships.Any(m => m.ProjectId == x.ID))
+                .Where(x => (memberships.Any(m => m.ProjectId == x.ID) || (x.IsPublic &&
+                            !db.UserBlocks.Any(block => block.BlockerId == currentUser.UserId && block.BlockedId == x.OwnerId || block.BlockerId == x.OwnerId && block.BlockedId == currentUser.UserId)))
                     && (!request.ProjectId.HasValue || x.ID == request.ProjectId)
                     && (EF.Functions.ILike(x.Name, pattern) || (x.Description != null && EF.Functions.ILike(x.Description, pattern))))
                 .OrderByDescending(x => EF.Functions.ILike(x.Name, query))
@@ -75,15 +78,21 @@ public sealed class GlobalSearchHandler(AppDbContext db, ICurrentUser currentUse
         {
             var rows = await db.Users.AsNoTracking()
                 .Where(x => !x.IsDeleted && !x.IsSuspended
-                    && (EF.Functions.ILike(x.UserName, pattern) || EF.Functions.ILike(x.FirstName + " " + x.LastName, pattern)))
-                .OrderByDescending(x => EF.Functions.ILike(x.UserName, query))
+                    && (x.ID == currentUser.UserId || x.DeveloperProfile == null || x.DeveloperProfile.IsProfilePublic)
+                    && !db.UserBlocks.Any(block => block.BlockerId == currentUser.UserId && block.BlockedId == x.ID || block.BlockerId == x.ID && block.BlockedId == currentUser.UserId)
+                    && (exactEmail
+                        ? x.Email.ToLower() == query
+                        : EF.Functions.ILike(x.PublicId, pattern) || EF.Functions.ILike(x.UserName, pattern) || EF.Functions.ILike(x.FirstName + " " + x.LastName, pattern)))
+                .OrderByDescending(x => EF.Functions.ILike(x.PublicId, identityQuery))
+                .ThenByDescending(x => EF.Functions.ILike(x.UserName, identityQuery))
                 .ThenBy(x => x.UserName)
                 .Skip(offset).Take(request.PageSize + 1)
                 .Select(x => new SearchResultDto(SearchResultType.User, x.ID, x.FirstName + " " + x.LastName,
                     "@" + x.UserName,
                     null,
                     x.UserName, "/users/" + x.PublicId,
-                    EF.Functions.ILike(x.UserName, query) ? 3 : EF.Functions.ILike(x.UserName, query + "%") ? 2 : 1))
+                    EF.Functions.ILike(x.PublicId, identityQuery) || EF.Functions.ILike(x.UserName, identityQuery) ? 3 :
+                    EF.Functions.ILike(x.PublicId, identityQuery + "%") || EF.Functions.ILike(x.UserName, identityQuery + "%") ? 2 : 1))
                 .ToListAsync(ct);
             groups.Add(Group(SearchResultType.User, rows, request.PageSize));
         }

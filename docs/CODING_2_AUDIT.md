@@ -38,9 +38,9 @@ The repository already contains substantial, overlapping user work. Stabilizatio
 | Autonomous test agent | Partial | Persistent bounded C# analyze/generate/run/failure/fix/re-run workflow, isolated execution evidence and explicit concurrency-checked apply are integrated; additional language runners and production worker deployment remain |
 | Screenshot to code | Partial | Local Ollama vision upload, evidence analysis, bounded React/TypeScript/CSS generation, CSP-isolated preview, review diff and concurrency-checked explicit apply are integrated; additional framework targets and browser visual-regression scoring remain |
 | AI UI generator | Partial | Prompt-to-multi-file React generation, page/component/routing/visual-system boundaries, explicit sample-data approval, CSP preview, diff and atomic concurrency-checked database apply are integrated; broader frameworks and visual regression remain |
-| Runtime/live preview | Partial | Browser HTML/CSS/JS preview and bounded local Docker C# runner exist; production queue/worker is intentionally disabled |
+| Runtime/live preview | Partial | Browser HTML/CSS/JS preview and bounded local Docker C# runner exist. Invalid file references are rejected before run; timeout/client cancellation kills the Docker process tree and every result has failure evidence plus audit metadata. Production queue/worker is intentionally disabled. |
 | Voice coding | Partial | Typed commands and optional browser speech recognition dispatch bounded file-open, AI explain/fix, autonomous test and branch actions; risky actions require confirmation |
-| Database explorer | Partial | Schema metadata and project blueprint exist; query editor/migration workflow needs completion |
+| Database explorer | Partial | Provider-aware schema metadata plus versioned create-table migration draft/DDL preview/explicit apply workflow are integrated; isolated connected-database query execution remains pending |
 | Admin/analytics | Partial | Existing admin and analytics surfaces need authorization and populated-data E2E checks |
 | Marketplace | Partial | Versioned six-category catalog, publish/like/save, strict manifest validation, explicit dangerous-permission approval and project-scoped AI-agent installations are integrated; sandbox runtimes for templates/themes/plugins remain intentionally unavailable |
 | Live rooms | Partial | Persisted private/project rooms, modes, challenges, invitations, roles, lifecycle/timer state, chat and SignalR fan-out are integrated with the existing synchronized project workspace; embedded room reactions/tasks/notes and full two-browser E2E remain |
@@ -62,7 +62,12 @@ The repository already contains substantial, overlapping user work. Stabilizatio
 
 ## Security hardening verification
 
+- Global/user search hides private profiles and both directions of social blocks. Public projects owned by blocked users do not leak through global search, while legitimate project memberships remain searchable. Email lookup is exact-only and `@PublicId` is no longer misclassified as email.
+- The global search palette exposes All/Project/File/User/Task filters, deduplicates paged results, supports explicit load-more, keyboard selection and bounded recent-search persistence; its Chromium workflow passes.
+
 - Refresh-token and logout mutations now reject untrusted browser origins with `403`; cross-site refresh cookies are emitted only for explicitly configured origins. Same-origin and non-browser clients retain the normal authentication flow.
+- Browser sessions rotate access tokens before expiry, coalesce concurrent refreshes, replay an interrupted request only once, and clear both API and realtime state when refresh is rejected. Unit tests and the Chromium expiry/replay workflow pass.
+- Refresh tokens are single-use members of an indexed token family. Server-side row locking serializes competing rotation attempts; reuse revokes every token/session in that family and writes a security audit event.
 - Screenshot-to-code verifies PNG/JPEG/WebP bytes instead of trusting the declared media type. Avatar and workspace image uploads retain their independent extension, size and signature checks.
 - Avatar, chat-attachment and workspace uploads share a per-user/IP token-bucket limiter in addition to request/file size limits.
 - Native Git paths are canonicalized beneath the configured repository root, repository-relative paths reject traversal and `.git`, and process arguments use `ProcessStartInfo.ArgumentList` without shell execution. Runtime execution retains the network-disabled, capability-dropped Docker boundary.
@@ -98,6 +103,8 @@ The repository already contains substantial, overlapping user work. Stabilizatio
 - Project roles now match Owner, Admin, Maintainer, Developer and Viewer. Viewer file/runtime mutations are rejected on the backend and the workspace renders read-only controls.
 
 ## Project deadline verification
+
+- Project owners can explicitly transfer ownership to an existing member; the transfer atomically updates `Project.OwnerId`, promotes the successor to Owner, demotes the former owner to Admin and notifies the successor. Self-transfer, non-member targets and non-owner actors are rejected.
 
 - Migration `20260822192446_AddProjectDeadlineLifecycle` was applied to local PostgreSQL; existing projects default to `Active` rather than being incorrectly downgraded to `Draft`.
 - A background lifecycle monitor persists `DeadlineSoon` and `DeadlineExpired` transitions and emits activity/audit records plus member notifications.
@@ -182,7 +189,7 @@ The repository already contains substantial, overlapping user work. Stabilizatio
 - Project analytics reports unique viewer/day views, project-share likes, project saves, contributors, verified deployments and activity. Private projects are included only through current membership; public detail access enforces blocking before recording a view.
 - Fork count is derived from persisted fork provenance. Public projects can be forked into a private, owner-controlled repository with cloned hierarchy, text/binary content and fresh version history; blocking, size and hierarchy boundaries are enforced.
 - Migrations `20260823081919_AddProjectViewAnalytics` and `20260825005048_AddProjectForkProvenance` are applied; EF reports no pending model changes.
-- Backend tests pass 300/300 and frontend tests pass 36/36. The production frontend build passes. The browser suite passes 9/9 runnable flows with one credential-dependent smoke skipped; fork-specific PostgreSQL container coverage is present and skips locally when Docker is unavailable.
+- Backend tests pass 309/309 and frontend tests pass 44/44. The production frontend build passes. The complete mocked Chromium suite passes 15/15 runnable flows with one credential-dependent smoke skipped. Public repositories and immutable deployments expose tested native-share links with clipboard fallback. Workflows include real Monaco edit → browser preview → save/commit → branch, AI plan → bounded diff → explicit approval → apply → preview/test, and access-token expiry → refresh rotation → request replay; PostgreSQL container coverage is present and skips locally when Docker is unavailable.
 
 ## Verified achievements and reputation
 
@@ -289,11 +296,16 @@ The repository already contains substantial, overlapping user work. Stabilizatio
 
 ## Frontend architecture verification
 
+- Settings notification mutations now optimistically synchronize the exact account-scoped query cache, roll back on failure and revalidate from the server. Chromium verifies profile, deduplicated skills, theme, notifications, validated password change and non-current session revocation.
+- The authenticated API now exposes `/api/auth/me`, loading the live non-suspended account and roles from the database while preserving signed demo claims from the JWT.
+
 - Existing feature-oriented modules and lazy route boundaries were retained. Shared TanStack Query keys now cover repository views, saved content, discover, notifications, social feed, blocked users and chat without introducing a parallel state layer.
 - Public-project save uses an optimistic cache update, disables duplicate submission, rolls back on failure and invalidates the consolidated saved-library prefix on success; the result is visible immediately without a manual refresh.
 - Frontend production build and 35/35 tests pass. Remaining legacy pages with local query-key literals or broad manual refetches stay explicitly tracked for incremental migration rather than being claimed complete.
 
 ## UI/UX verification
+
+- The core IDE Chromium workflow now verifies folder creation, nested file creation, rename propagation, recursive delete, a real Monaco keyboard edit, version-history restore, live preview, commit and branch creation through the rendered product UI.
 
 - The retained dark-first surface uses restrained violet/blue/cyan AI accents, dense workspace layouts, shared async/error/empty states, reduced-motion rules and authorization-gated navigation.
 - Real browser smoke at a 390×844 viewport confirmed the public login route at exactly viewport width, no horizontal overflow, accessible form labels/navigation and no console errors. The authenticated workspace and social microinteraction visual matrix remains pending and is not claimed from this public-route check.
@@ -302,7 +314,7 @@ The repository already contains substantial, overlapping user work. Stabilizatio
 
 - Feed, saved posts and comment threads use bounded cursor pagination and TanStack infinite queries; backend queries request only `limit + 1` projected rows and never load the complete feed.
 - The frontend now stably deduplicates merged pages by persisted IDs, preventing duplicate cards/comments when invalidation, optimistic cache state or future realtime delivery overlaps a REST page.
-- A dedicated ordering/deduplication test passes. Frontend now passes 36/36 tests and its production build; the existing Monaco/editor chunk-size and imported CSS at-rule warnings remain visible rather than suppressed.
+- Dedicated ordering/deduplication, share-fallback, session-rotation, realtime handshake and bounded AI-diff tests pass. Frontend now passes 44/44 tests and its production build; the existing Monaco/editor chunk-size and imported CSS at-rule warnings remain visible rather than suppressed.
 
 ## File-security verification
 
@@ -322,6 +334,8 @@ The repository already contains substantial, overlapping user work. Stabilizatio
 ## Honest production status
 
 ## Core social E2E verification
+
+- The project-board Chromium workflow covers task creation, priority, real pointer drag between columns, member assignment, comments, editing and confirmed deletion with server-state refreshes.
 
 - A deterministic Chromium E2E now verifies the required profile follow → feed publish → like → comment → save sequence through the real routed React UI and API client/cache behavior. Network responses are isolated fixtures, so this proves browser integration while the separate API smoke tests continue to prove database behavior.
 - Live-room Chromium E2E verifies host join, participant invitation, start, shared task creation, persistent chat and completion. REST failures now render retryable error states, while SignalR outages degrade to an explicit reconnecting notice instead of trapping the page in an endless loading state.

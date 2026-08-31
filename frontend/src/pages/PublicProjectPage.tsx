@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ErrorState, LoadingState } from "../components/AsyncState";
+import { shareUrl } from "../utils/shareUrl";
 import {
   usersApi,
   userKeys,
@@ -35,6 +36,17 @@ export function PublicProjectPage() {
   const { show } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const shareProject = async () => {
+    try {
+      const result = await shareUrl(
+        details.data?.name ?? "Public project",
+        window.location.href,
+      );
+      if (result === "copied") show("Project link copied.");
+    } catch {
+      show("Project link could not be shared.", "error");
+    }
+  };
   const details = useQuery({
     queryKey: userKeys.publicProject(projectId),
     queryFn: () => usersApi.publicProject(projectId),
@@ -170,6 +182,7 @@ export function PublicProjectPage() {
           >
             {forkProject.isPending ? "Forking…" : "Fork"}
           </button>
+          <button onClick={() => void shareProject()}>Share</button>
           <button
             onClick={() => {
               const reason = window

@@ -100,6 +100,7 @@ namespace Coding.Data
         public DbSet<AiUiGeneration> AiUiGenerations => Set<AiUiGeneration>();
         public DbSet<ProjectDeployment> ProjectDeployments => Set<ProjectDeployment>();
         public DbSet<ProjectDeploymentFile> ProjectDeploymentFiles => Set<ProjectDeploymentFile>();
+        public DbSet<ProjectDatabaseMigration> ProjectDatabaseMigrations => Set<ProjectDatabaseMigration>();
 
         public DbSet<Notification> Notifications => Set<Notification>();
         public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
