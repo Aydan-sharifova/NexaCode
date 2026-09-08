@@ -22,6 +22,7 @@ public sealed class ActivityLoggingBehavior<TRequest, TResponse>(IActivityLogger
         CreateProjectCommand => new(null, GetGuid(response, "Id"), "ProjectCreated", "Project", GetGuid(response, "Id"), "Created a project."),
         UpdateProjectCommand x => new(null, x.ProjectId, "ProjectUpdated", "Project", x.ProjectId, "Updated project settings."),
         DeleteProjectCommand x => new(null, x.ProjectId, "ProjectDeleted", "Project", x.ProjectId, "Deleted a project."),
+        ChangeProjectLifecycleCommand x => new(null, x.ProjectId, $"Project{ x.Status }", "Project", x.ProjectId, $"Changed project lifecycle to {x.Status}."),
         InviteProjectMemberCommand x => new(null, x.ProjectId, "ProjectInvitationCreated", "ProjectInvitation", GetGuid(response, "Id"), "Invited a project member."),
         AcceptProjectInvitationCommand => new(null, response is Guid projectId ? projectId : null, "ProjectInvitationAccepted", "ProjectInvitation", null, "Accepted a project invitation."),
         ChangeProjectMemberRoleCommand x => new(null, x.ProjectId, "ProjectMemberRoleChanged", "ProjectMember", x.UserId, "Changed a project member role.", new Dictionary<string, object?> { ["role"] = x.Role.ToString() }),

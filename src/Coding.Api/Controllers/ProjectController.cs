@@ -35,6 +35,10 @@ public sealed class ProjectController(ISender sender) : ControllerBase
     public Task<ProjectDeadlineState> ExtendDeadline(Guid projectId, ExtendProjectDeadlineRequest request, CancellationToken cancellationToken) =>
         sender.Send(new ExtendProjectDeadlineCommand(projectId, request.DeadlineAt), cancellationToken);
 
+    [HttpPut("{projectId:guid}/lifecycle")]
+    public Task<ProjectDetails> ChangeLifecycle(Guid projectId, ChangeProjectLifecycleRequest request, CancellationToken cancellationToken) =>
+        sender.Send(new ChangeProjectLifecycleCommand(projectId, request.Status), cancellationToken);
+
     [HttpGet("{projectId:guid}/members")]
     public Task<IReadOnlyList<ProjectMemberDetails>> Members(Guid projectId, CancellationToken cancellationToken) => sender.Send(new ListProjectMembersQuery(projectId), cancellationToken);
 
@@ -83,3 +87,4 @@ public sealed record ChangeRoleRequest(ProjectRole Role);
 public sealed record TransferOwnershipRequest(Guid NewOwnerId);
 public sealed record InvitationTokenRequest(string Token);
 public sealed record ExtendProjectDeadlineRequest(DateTime DeadlineAt);
+public sealed record ChangeProjectLifecycleRequest(ProjectStatus Status);

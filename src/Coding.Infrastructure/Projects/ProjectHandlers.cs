@@ -134,6 +134,28 @@ public sealed class DeleteProjectHandler(AppDbContext context, ICurrentUser curr
     }
 }
 
+public sealed class ChangeProjectLifecycleHandler(AppDbContext context, ICurrentUser currentUser)
+    : IRequestHandler<ChangeProjectLifecycleCommand, ProjectDetails>
+{
+    public async Task<ProjectDetails> Handle(ChangeProjectLifecycleCommand request, CancellationToken cancellationToken)
+    {
+        var role = await ProjectAccess.RequireMemberAsync(context, request.ProjectId, currentUser.UserId, cancellationToken);
+        ProjectAccess.RequireManager(role);
+        var project = await context.Projects.SingleOrDefaultAsync(item => item.ID == request.ProjectId, cancellationToken)
+            ?? throw new NotFoundException("Project not found.");
+
+        project.Status = request.Status == ProjectStatus.Active
+            ? ProjectLifecycle.EffectiveStatus(ProjectStatus.Active, project.DeadlineAt, DateTime.UtcNow)
+            : request.Status;
+        project.UpdateAt = DateTime.UtcNow;
+        await context.SaveChangesAsync(cancellationToken);
+
+        return new ProjectDetails(project.ID, project.Name, project.Description, project.DefaultLanguage,
+            project.IsPublic, project.OwnerId, role, project.CreatedAt, project.UpdateAt, project.DeadlineAt,
+            project.Status, ProjectLifecycle.IsWorkspaceReadOnly(role, project.Status));
+    }
+}
+
 public sealed class InviteProjectMemberHandler(
     AppDbContext context,
     ICurrentUser currentUser,
@@ -342,13 +364,13 @@ public sealed class ListMyProjectsHandler(AppDbContext context, ICurrentUser cur
     {
         var rows = await context.ProjectMembers.AsNoTracking().Where(member => member.UserId == currentUser.UserId)
             .OrderByDescending(member => member.Project.UpdateAt ?? member.Project.CreatedAt)
-            .Select(member => new { member.ProjectId, member.Project.Name, member.Project.Description, member.Project.DefaultLanguage, Role = member.Role, MemberCount = member.Project.Members.Count(projectMember => !projectMember.User.IsDeleted), member.Project.CreatedAt, member.Project.DeadlineAt, member.Project.Status })
+            .Select(member => new { member.ProjectId, member.Project.Name, member.Project.Description, member.Project.DefaultLanguage, member.Project.IsPublic, Role = member.Role, MemberCount = member.Project.Members.Count(projectMember => !projectMember.User.IsDeleted), member.Project.CreatedAt, member.Project.UpdateAt, member.Project.DeadlineAt, member.Project.Status })
             .ToListAsync(cancellationToken);
         var now = DateTime.UtcNow;
         return rows.Select(row =>
         {
             var status = ProjectLifecycle.EffectiveStatus(row.Status, row.DeadlineAt, now);
-            return new ProjectListItem(row.ProjectId, row.Name, row.Description, row.DefaultLanguage, row.Role, row.MemberCount, row.CreatedAt, row.DeadlineAt, status, ProjectLifecycle.IsWorkspaceReadOnly(row.Role, status));
+            return new ProjectListItem(row.ProjectId, row.Name, row.Description, row.DefaultLanguage, row.IsPublic, row.Role, row.MemberCount, row.CreatedAt, row.UpdateAt, row.DeadlineAt, status, ProjectLifecycle.IsWorkspaceReadOnly(row.Role, status));
         }).ToList();
     }
 }

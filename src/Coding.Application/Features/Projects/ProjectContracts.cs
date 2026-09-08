@@ -4,7 +4,7 @@ using MediatR;
 
 namespace Coding.Application.Features.Projects;
 
-public sealed record ProjectListItem(Guid Id, string Name, string? Description, string DefaultLanguage, ProjectRole CurrentUserRole, int MemberCount, DateTime CreatedAt, DateTime? DeadlineAt, ProjectStatus Status, bool IsReadOnly);
+public sealed record ProjectListItem(Guid Id, string Name, string? Description, string DefaultLanguage, bool IsPublic, ProjectRole CurrentUserRole, int MemberCount, DateTime CreatedAt, DateTime? UpdatedAt, DateTime? DeadlineAt, ProjectStatus Status, bool IsReadOnly);
 public sealed record ProjectDetails(Guid Id, string Name, string? Description, string DefaultLanguage, bool IsPublic, Guid OwnerId, ProjectRole CurrentUserRole, DateTime CreatedAt, DateTime? UpdatedAt, DateTime? DeadlineAt, ProjectStatus Status, bool IsReadOnly);
 public sealed record ProjectMemberDetails(Guid UserId, string PublicId, string FullName, string Email, string? AvatarUrl, ProjectRole Role, DateTime JoinedAt);
 public sealed record ProjectInvitationDetails(Guid Id, string Email, ProjectRole Role, DateTime ExpiresAt, string InvitedBy);
@@ -27,6 +27,7 @@ public sealed record GetProjectDetailsQuery(Guid ProjectId) : IRequest<ProjectDe
 public sealed record ListProjectMembersQuery(Guid ProjectId) : IRequest<IReadOnlyList<ProjectMemberDetails>>;
 public sealed record ListPendingInvitationsQuery(Guid ProjectId) : IRequest<IReadOnlyList<ProjectInvitationDetails>>;
 public sealed record ExtendProjectDeadlineCommand(Guid ProjectId, DateTime DeadlineAt) : IRequest<ProjectDeadlineState>;
+public sealed record ChangeProjectLifecycleCommand(Guid ProjectId, ProjectStatus Status) : IRequest<ProjectDetails>;
 
 public sealed class CreateProjectValidator : AbstractValidator<CreateProjectCommand>
 {
@@ -57,6 +58,17 @@ public sealed class UpdateProjectValidator : AbstractValidator<UpdateProjectComm
         RuleFor(command => command.Name).NotEmpty().MaximumLength(120);
         RuleFor(command => command.Description).MaximumLength(1000);
         RuleFor(command => command.DefaultLanguage).NotEmpty().MaximumLength(50);
+    }
+}
+
+public sealed class ChangeProjectLifecycleValidator : AbstractValidator<ChangeProjectLifecycleCommand>
+{
+    public ChangeProjectLifecycleValidator()
+    {
+        RuleFor(command => command.ProjectId).NotEmpty();
+        RuleFor(command => command.Status)
+            .Must(status => status is ProjectStatus.Active or ProjectStatus.Suspended or ProjectStatus.Archived)
+            .WithMessage("A project can only be activated, suspended, or archived through this action.");
     }
 }
 

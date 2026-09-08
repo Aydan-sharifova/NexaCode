@@ -1,5 +1,5 @@
 import { apiClient } from "../../services/apiClient";
-import type { ProjectDeadlineState, ProjectDetails, ProjectInput, ProjectInvitation, ProjectListItem, ProjectMember, ProjectRole } from "./types";
+import type { ProjectDeadlineState, ProjectDetails, ProjectInput, ProjectInvitation, ProjectListItem, ProjectMember, ProjectRole, ProjectStatus } from "./types";
 
 export const projectApi = {
   list: () => apiClient.get<ProjectListItem[]>("/projects"),
@@ -14,6 +14,7 @@ export const projectApi = {
   transferOwnership: (id: string, newOwnerId: string) => apiClient.put<void>(`/projects/${id}/ownership`, { newOwnerId }),
   removeMember: (id: string, userId: string) => apiClient.delete<void>(`/projects/${id}/members/${userId}`),
   extendDeadline: (id: string, deadlineAt: string) => apiClient.put<ProjectDeadlineState>(`/projects/${id}/deadline`, { deadlineAt }),
+  changeLifecycle: (id: string, status: Extract<ProjectStatus, "Active" | "Suspended" | "Archived">) => apiClient.put<ProjectDetails>(`/projects/${id}/lifecycle`, { status }),
   acceptInvitation: (token: string) => apiClient.post<{ projectId: string }>("/projects/invitations/accept", { token }),
   rejectInvitation: (token: string) => apiClient.post<void>("/projects/invitations/reject", { token }),
   acceptInvitationById: (id: string) => apiClient.post<{ projectId: string }>(`/projects/invitations/${id}/accept`),
